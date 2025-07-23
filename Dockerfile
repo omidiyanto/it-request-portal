@@ -26,7 +26,7 @@ COPY package*.json ./
 
 # Install both production and development dependencies
 # This is needed because the built server code still references vite
-RUN npm ci
+RUN npm ci --omit=dev && npm install vite
 
 # Copy built files from the builder stage
 COPY --from=builder /app/dist ./dist
