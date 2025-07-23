@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 10%, 3.9%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(210, 90%, 60%);
+  --primary-foreground: hsl(0, 0%, 98%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 50%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(210, 90%, 60%);
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: hsl(240, 10%, 3.9%);
+  --foreground: hsl(0, 0%, 98%);
+  --muted: hsl(240, 3.7%, 15.9%);
+  --muted-foreground: hsl(240, 5%, 64.9%);
+  --popover: hsl(240, 10%, 3.9%);
+  --popover-foreground: hsl(0, 0%, 98%);
+  --card: hsl(240, 7%, 8%);
+  --card-foreground: hsl(0, 0%, 98%);
+  --border: hsl(240, 3.7%, 15.9%);
+  --input: hsl(240, 3.7%, 15.9%);
+  --primary: hsl(210, 90%, 60%);
+  --primary-foreground: hsl(0, 0%, 98%);
+  --secondary: hsl(240, 3.7%, 15.9%);
+  --secondary-foreground: hsl(0, 0%, 98%);
+  --accent: hsl(240, 3.7%, 15.9%);
+  --accent-foreground: hsl(0, 0%, 98%);
+  --destructive: hsl(0, 62.8%, 50%);
+  --destructive-foreground: hsl(0, 0%, 98%);
+  --ring: hsl(210, 90%, 60%);
+  --success: hsl(142, 71%, 45%);
+  --success-foreground: hsl(0, 0%, 98%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background: linear-gradient(135deg, hsl(240, 10%, 3.9%) 0%, hsl(240, 7%, 8%) 50%, hsl(240, 10%, 3.9%) 100%);
+    min-height: 100vh;
+  }
+
+  html {
+    @apply dark;
+  }
+}
+
+@layer components {
+  .nav-tab {
+    @apply px-4 py-2 rounded-md text-sm font-medium transition-all duration-200;
+  }
+  
+  .nav-tab.active {
+    @apply bg-primary text-primary-foreground shadow-lg;
+  }
+  
+  .nav-tab:not(.active) {
+    @apply text-muted-foreground hover:text-foreground hover:bg-muted;
+  }
+
+  .ticket-card {
+    @apply bg-card backdrop-blur-sm rounded-xl border border-border hover:border-primary transition-all duration-200 transform hover:scale-[1.02] cursor-pointer shadow-lg hover:shadow-xl;
+  }
+
+  .form-field {
+    @apply space-y-2;
+  }
+
+  .captcha-box {
+    @apply bg-muted px-4 py-2 rounded border text-foreground font-mono text-lg text-center;
+  }
+}
+
+@layer utilities {
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
