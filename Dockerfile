@@ -10,7 +10,7 @@ RUN npm ci
 # Copy the rest of the application code
 COPY . .
 
-# Build the application
+# Build the application with production flag
 RUN npm run build
 
 # Stage 2: Create a lightweight production image
@@ -24,8 +24,9 @@ ENV NODE_ENV=production
 # Copy package files
 COPY package*.json ./
 
-# Install only production dependencies
-RUN npm ci --omit=dev
+# Install both production and development dependencies
+# This is needed because the built server code still references vite
+RUN npm ci
 
 # Copy built files from the builder stage
 COPY --from=builder /app/dist ./dist
