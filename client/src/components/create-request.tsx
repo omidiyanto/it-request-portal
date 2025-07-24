@@ -88,12 +88,12 @@ export default function CreateRequest() {
   // Set up queries with auto-refresh every 30 seconds
   const { data: departments } = useQuery<Department[]>({
     queryKey: ["/api/departments"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 3000, // Refresh every 30 seconds
   });
 
   const { data: allUsers, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/users"],
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 3000, // Refresh every 30 seconds
   });
   
   // Filter users based on search term and sort alphabetically

@@ -804,6 +804,7 @@ export class MemStorage implements IStorage {
             }
           }
 
+          // Create the base ticket object
           const ticket: Ticket = {
             id,
             ticketId: iTopTicket.fields.ref,
@@ -820,11 +821,20 @@ export class MemStorage implements IStorage {
           
           this.tickets.set(id, ticket);
           
-          ticketsWithDetails.push({
+          // Create the enriched ticket with department and user
+          const enrichedTicket: TicketWithDetails = {
             ...ticket,
             department,
             user
-          });
+          };
+
+          // Add agent_id_friendlyname if it exists
+          if (iTopTicket.fields.agent_id_friendlyname) {
+            (enrichedTicket as any).agent_id_friendlyname = iTopTicket.fields.agent_id_friendlyname;
+            console.log(`Added agent_id_friendlyname: ${iTopTicket.fields.agent_id_friendlyname} to ticket ${ticket.ticketId}`);
+          }
+          
+          ticketsWithDetails.push(enrichedTicket);
         }
 
         return ticketsWithDetails;

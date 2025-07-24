@@ -3,7 +3,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, ShieldCheck, XCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,6 +31,13 @@ interface Props {
 export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: Props) {
   const { toast } = useToast();
   const [captcha, setCaptcha] = useState({ question: "", answer: "" });
+  const [captchaError, setCaptchaError] = useState<string | null>(null);
+  const [internalOpen, setInternalOpen] = useState(isOpen);
+
+  // Sync internal state with prop
+  useEffect(() => {
+    setInternalOpen(isOpen);
+  }, [isOpen]);
 
   const form = useForm<CompletionData>({
     resolver: zodResolver(completionSchema),
@@ -47,27 +54,19 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
       question: `${num1} + ${num2} = ?`,
       answer: (num1 + num2).toString(),
     });
+    setCaptchaError(null);
   };
 
   useEffect(() => {
     if (isOpen) {
       generateCaptcha();
       form.reset();
+      setCaptchaError(null);
     }
   }, [isOpen, form]);
 
   const completeMutation = useMutation({
     mutationFn: async () => {
-      // The server will handle the iTop API call with the format:
-      // {
-      //   operation: "core/update",
-      //   comment: "Updated from Ticket Tracker Pro",
-      //   class: "UserRequest",
-      //   key: `SELECT UserRequest WHERE ref = "${ticket.ticketId}"`,
-      //   fields: {
-      //     status: "resolved"
-      //   }
-      // }
       const response = await apiRequest("PATCH", `/api/tickets/${ticket.ticketId}/status`, {
         status: "closed",
       });
@@ -77,9 +76,13 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       toast({
         title: "Ticket Completed!",
-        description: "The ticket has been successfully marked as resolved",
+        description: "The ticket has been successfully marked as closed",
       });
+      // Force close this modal
+      setInternalOpen(false);
+      // Call onSuccess and onClose to close both modals
       onSuccess();
+      onClose();
     },
     onError: () => {
       toast({
@@ -92,9 +95,7 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
 
   const handleSubmit = (data: CompletionData) => {
     if (data.captchaAnswer !== captcha.answer) {
-      form.setError("captchaAnswer", {
-        message: "Incorrect answer. Please try again.",
-      });
+      setCaptchaError("Incorrect answer. Please try again.");
       generateCaptcha();
       form.setValue("captchaAnswer", "");
       return;
@@ -103,12 +104,17 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
     completeMutation.mutate();
   };
 
+  const handleClose = () => {
+    setInternalOpen(false);
+    onClose();
+  };
+
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md bg-card backdrop-blur-sm border-border">
-        <DialogHeader className="text-center pb-6 border-b border-border">
-          <div className="w-16 h-16 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="text-green-500 text-2xl" />
+    <Dialog open={internalOpen} onOpenChange={(open) => !open && handleClose()}>
+      <DialogContent className="max-w-md bg-card border-border p-0 overflow-hidden">
+        <DialogHeader className="bg-gradient-to-r from-green-600/20 to-green-500/10 p-6 text-center">
+          <div className="w-16 h-16 bg-green-600/20 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-green-500/30">
+            <CheckCircle className="text-green-500 w-8 h-8" />
           </div>
           <DialogTitle className="text-xl font-semibold text-foreground">
             Complete Ticket
@@ -119,12 +125,16 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="p-6 space-y-6">
             {/* Captcha Section */}
-            <div className="bg-muted/50 rounded-lg p-4">
-              <FormLabel className="block text-sm font-medium text-muted-foreground mb-3">
-                Security Verification
-              </FormLabel>
+            <div className="bg-muted/30 rounded-lg p-5 border border-border/50">
+              <div className="flex items-center gap-2 mb-4">
+                <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+                <FormLabel className="text-sm font-medium text-muted-foreground m-0">
+                  Human Verification
+                </FormLabel>
+              </div>
+              
               <div className="flex items-center space-x-3">
                 <Captcha question={captcha.question} />
                 <FormField
@@ -135,7 +145,7 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
                       <FormControl>
                         <Input
                           {...field}
-                          className="bg-muted border-border"
+                          className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/30"
                           placeholder="Answer"
                         />
                       </FormControl>
@@ -144,6 +154,13 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
                   )}
                 />
               </div>
+              
+              {captchaError && (
+                <div className="mt-2 text-sm text-red-500 flex items-center gap-1">
+                  <XCircle className="w-3.5 h-3.5" />
+                  <span>{captchaError}</span>
+                </div>
+              )}
             </div>
 
             {/* Confirmation Checkbox */}
@@ -151,41 +168,48 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
               control={form.control}
               name="confirmed"
               render={({ field }) => (
-                <FormItem className="flex items-start space-x-3">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      className="mt-1"
-                    />
-                  </FormControl>
-                  <FormLabel className="text-sm text-muted-foreground leading-relaxed">
-                    I confirm that this ticket has been completely resolved and all issues have been addressed satisfactorily.
-                  </FormLabel>
-                  <FormMessage />
+                <FormItem className="bg-muted/30 rounded-lg p-5 border border-border/50">
+                  <div className="flex items-start gap-3">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="mt-1 border-border data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
+                      />
+                    </FormControl>
+                    <div className="space-y-1">
+                      <FormLabel className="text-sm font-medium text-foreground">
+                        Confirmation
+                      </FormLabel>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        I confirm that this ticket has been completely resolved and all issues have been addressed satisfactorily.
+                      </p>
+                    </div>
+                  </div>
+                  <FormMessage className="mt-2 ml-8" />
                 </FormItem>
               )}
             />
 
             {/* Action Buttons */}
-            <div className="flex space-x-3">
+            <div className="flex space-x-3 pt-2">
               <Button
                 type="button"
                 variant="outline"
                 onClick={onClose}
-                className="flex-1 bg-muted text-muted-foreground hover:bg-muted/80"
+                className="flex-1 border-border"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={completeMutation.isPending}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium transition-all duration-200"
               >
                 {completeMutation.isPending ? (
                   <>
                     <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    Completing...
+                    Processing...
                   </>
                 ) : (
                   "Complete Ticket"

@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Search, Ticket as TicketIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import TicketDetailModal from "@/components/ticket-detail-modal";
 import { Button } from "@/components/ui/button";
+import { queryClient } from "@/lib/queryClient";
 import type { TicketWithDetails } from "@shared/schema";
 
 // Helper function to strip HTML tags for preview
@@ -14,27 +15,32 @@ const stripHtml = (html: string) => {
   return doc.body.textContent || '';
 };
 
-// Helper function to extract issue description from HTML content
-const extractIssueDescription = (html: string): string => {
+// Helper function to extract fields from HTML content
+const extractFieldFromHtml = (html: string, fieldName: string): string => {
   if (!html) return '';
   
-  // Try to match the issue description pattern
-  const issueDescMatch = html.match(/<strong>ISSUE DESCRIPTION<\/strong>:\s*([^<]+)/i) || 
-                         html.match(/ISSUE DESCRIPTION:\s*([^<]+)/i) ||
-                         html.match(/<p><strong>ISSUE DESCRIPTION<\/strong>:(.*?)<\/p>/i);
+  // Try to match the field pattern
+  const regex = new RegExp(`<strong>${fieldName}<\\/strong>:\\s*([^<]+)`, 'i');
+  const altRegex = new RegExp(`${fieldName}:\\s*([^<]+)`, 'i');
+  const tagRegex = new RegExp(`<p><strong>${fieldName}<\\/strong>:(.*?)<\\/p>`, 'i');
   
-  if (issueDescMatch && issueDescMatch[1]) {
-    return issueDescMatch[1].trim();
+  const match = html.match(regex) || html.match(altRegex) || html.match(tagRegex);
+  
+  if (match && match[1]) {
+    return match[1].trim();
   }
   
-  // If no match found, try to extract the last part of the description after RACK LOCATION
-  const parts = html.split(/RACK LOCATION:.*?\n/i);
-  if (parts.length > 1) {
-    return parts[1].trim();
-  }
-  
-  // If all else fails, just return the stripped HTML
-  return stripHtml(html);
+  return '';
+};
+
+// Helper function to extract issue description from HTML content
+const extractIssueDescription = (html: string): string => {
+  return extractFieldFromHtml(html, "ISSUE DESCRIPTION") || stripHtml(html);
+};
+
+// Helper function to extract device type from HTML content
+const extractDeviceType = (html: string): string => {
+  return extractFieldFromHtml(html, "DEVICE TYPE") || "-";
 };
 
 export default function SearchRequest() {
@@ -42,9 +48,16 @@ export default function SearchRequest() {
   const [selectedTicket, setSelectedTicket] = useState<TicketWithDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
+  // Set up query with auto-refresh every 3 seconds
   const { data: tickets, isLoading } = useQuery<TicketWithDetails[]>({
     queryKey: ["/api/tickets"],
+    refetchInterval: 3000, // Refresh every 3 seconds
   });
+
+  // Force refresh data when component mounts
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
+  }, []);
 
   const filteredTickets = useMemo(() => {
     if (!tickets) return [];
@@ -106,6 +119,38 @@ export default function SearchRequest() {
       minute: "2-digit",
       hour12: false,
     });
+  };
+
+  // Extract PIC (Person In Charge) from ticket data
+  const getPersonInCharge = (ticket: TicketWithDetails) => {
+    // Check if ticket has agent_id_friendlyname field
+    if (
+      ticket.hasOwnProperty('agent_id_friendlyname') && 
+      (ticket as any).agent_id_friendlyname
+    ) {
+      return (ticket as any).agent_id_friendlyname;
+    }
+    
+    // Check if ticket has agent_name field
+    if (
+      ticket.hasOwnProperty('agent_name') && 
+      (ticket as any).agent_name
+    ) {
+      return (ticket as any).agent_name;
+    }
+    
+    // For tickets with status "assigned" or "in progress", but missing agent info
+    if (
+      (ticket.status.toLowerCase() === "assigned" || 
+       ticket.status.toLowerCase() === "in-progress" ||
+       ticket.status.toLowerCase() === "pending") && 
+      !ticket.hasOwnProperty('agent_id_friendlyname')
+    ) {
+      console.log("Ticket is assigned but missing agent info:", ticket.ticketId);
+      return "Assigned Agent";
+    }
+    
+    return null;
   };
 
   if (isLoading) {
@@ -210,60 +255,77 @@ export default function SearchRequest() {
               </p>
             </div>
           ) : (
-            filteredTickets.map((ticket: TicketWithDetails) => (
-              <div
-                key={ticket.id}
-                className="ticket-card"
-                onClick={() => setSelectedTicket(ticket)}
-              >
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-                        <TicketIcon className="text-primary w-4 h-4" />
+            filteredTickets.map((ticket: TicketWithDetails) => {
+              // Extract device type from description
+              const deviceType = typeof ticket.issueDescription === 'string' && ticket.issueDescription.includes('<') 
+                ? extractDeviceType(ticket.issueDescription) 
+                : "-";
+              
+              // Get PIC if available
+              const personInCharge = getPersonInCharge(ticket);
+              
+              return (
+                <div
+                  key={ticket.id}
+                  className="ticket-card"
+                  onClick={() => setSelectedTicket(ticket)}
+                >
+                  <div className="p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+                          <TicketIcon className="text-primary w-4 h-4" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-foreground">{ticket.ticketId}</h3>
+                          <p className="text-sm text-muted-foreground">{ticket.user.name}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="font-semibold text-foreground">{ticket.ticketId}</h3>
-                        <p className="text-sm text-muted-foreground">{ticket.user.name}</p>
+                      <Badge className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(ticket.status)}`}>
+                        {getStatusLabel(ticket.status)}
+                      </Badge>
+                    </div>
+                    
+                    {/* Ticket title */}
+                    <h4 className="font-medium text-foreground mb-3 line-clamp-1">{ticket.title}</h4>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Department:</span>
+                        <span className="text-foreground">{ticket.department.name}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Device Type:</span>
+                        <span className="text-foreground">{deviceType}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Extension:</span>
+                        <span className="text-foreground">{ticket.extension}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Location:</span>
+                        <span className="text-foreground">{ticket.rackLocation}</span>
+                      </div>
+                      
+                      {/* Show PIC if available */}
+                      {personInCharge && (
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">PIC:</span>
+                          <span className="text-foreground">{personInCharge}</span>
+                        </div>
+                      )}
                     </div>
-                    <Badge className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(ticket.status)}`}>
-                      {getStatusLabel(ticket.status)}
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Department:</span>
-                      <span className="text-foreground">{ticket.department.name}</span>
+                    
+                    <div className="mt-4 text-xs text-muted-foreground">
+                      Created: {formatDate(ticket.createdAt)}
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Extension:</span>
-                      <span className="text-foreground">{ticket.extension}</span>
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Last Updated: {formatDate(ticket.updatedAt)}
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Location:</span>
-                      <span className="text-foreground">{ticket.rackLocation}</span>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <p className="text-sm text-foreground line-clamp-2">
-                      {typeof ticket.issueDescription === 'string' && ticket.issueDescription.includes('<') 
-                        ? extractIssueDescription(ticket.issueDescription) 
-                        : ticket.issueDescription}
-                    </p>
-                  </div>
-                  
-                  <div className="mt-4 text-xs text-muted-foreground">
-                    Created: {formatDate(ticket.createdAt)}
-                  </div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Last Updated: {formatDate(ticket.updatedAt)}
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
