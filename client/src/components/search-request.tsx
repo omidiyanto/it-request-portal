@@ -191,6 +191,7 @@ export default function SearchRequest() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 bg-muted border-border"
               placeholder="Search by user name..."
+              autoComplete="off"
             />
           </div>
         </div>

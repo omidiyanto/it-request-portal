@@ -330,6 +330,7 @@ export default function CreateRequest() {
                                 placeholder="Search users..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
+                                autoComplete="off"
                               />
                             </div>
                             <CommandEmpty>No user found.</CommandEmpty>
@@ -380,6 +381,7 @@ export default function CreateRequest() {
                           {...field}
                           className="bg-muted border-border"
                           placeholder="e.g., 1234 (optional)"
+                          autoComplete="off"
                         />
                       </FormControl>
                       <FormMessage />
@@ -496,6 +498,7 @@ export default function CreateRequest() {
                           {...field}
                           className="bg-muted border-border"
                           placeholder="Brief description of the issue"
+                          autoComplete="off"
                         />
                       </FormControl>
                       <FormMessage />
@@ -517,6 +520,7 @@ export default function CreateRequest() {
                           {...field} 
                           className="bg-muted border-border resize-none" 
                           placeholder="Please describe the issue in detail"
+                          autoComplete="off"
                           rows={4}
                         />
                       </FormControl>

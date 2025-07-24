@@ -147,6 +147,7 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
                           {...field}
                           className="bg-background border-border text-foreground placeholder:text-muted-foreground focus-visible:ring-primary/30"
                           placeholder="Answer"
+                          autoComplete="off"
                         />
                       </FormControl>
                       <FormMessage />
