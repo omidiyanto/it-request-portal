@@ -37,6 +37,7 @@ interface PrintTicketModalProps {
     extension: string;
     createdAt: string;
     title: string;
+    rackLocation?: string; // Added rackLocation as an optional property
   };
 }
 
@@ -212,8 +213,12 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
                     <td className="value w-3/4 py-0.5">{ticketData.departmentName}</td>
                   </tr>
                   <tr>
-                    <td className="label font-bold w-1/4 py-0.5">Ext.:</td>
+                    <td className="label font-bold w-1/4 py-0.5">Ext:</td>
                     <td className="value w-3/4 py-0.5">{ticketData.extension}</td>
+                  </tr>
+                  <tr>
+                    <td className="label font-bold w-1/4 py-0.5">Rack:</td>
+                    <td className="value w-3/4 py-0.5">{ticketData.rackLocation || "-"}</td>
                   </tr>
                   <tr>
                     <td className="label font-bold w-1/4 py-0.5">Date In:</td>

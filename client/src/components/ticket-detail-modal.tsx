@@ -305,7 +305,8 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
           departmentName: ticket.department.name,
           extension: ticket.extension || "-",
           createdAt: typeof ticket.createdAt === 'string' ? ticket.createdAt : new Date(ticket.createdAt).toISOString(),
-          title: ticket.title
+          title: ticket.title,
+          rackLocation: ticket.rackLocation
         }}
       />
     </Dialog>

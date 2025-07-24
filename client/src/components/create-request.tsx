@@ -77,6 +77,7 @@ export default function CreateRequest() {
     extension: string;
     createdAt: string;
     title: string;
+    rackLocation?: string;
   } | null>(null);
 
   const stepOneForm = useForm<StepOneData>({
@@ -209,6 +210,7 @@ export default function CreateRequest() {
         extension: ticket.extension || "-",
         createdAt: ticket.createdAt,
         title: ticket.title,
+        rackLocation: ticket.rackLocation
       });
       setShowPrintModal(true);
       console.log("Setting print modal to show with data:", ticket);
