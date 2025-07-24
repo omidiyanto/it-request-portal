@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Ticket, Send, Search, Check, ChevronDown } from "lucide-react";
+import { Send, Search, Check, ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -290,7 +290,7 @@ export default function CreateRequest() {
           <CardContent className="px-6 py-8 sm:px-8">
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/20 rounded-full mb-4">
-                <Ticket className="text-primary text-2xl" />
+                <img src="/logo2.png" alt="IT Request Portal Logo" className="w-auto h-15" />
               </div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Create New Request</h2>
               <p className="text-muted-foreground">Select a user to get started</p>
@@ -412,7 +412,7 @@ export default function CreateRequest() {
         <CardContent className="px-6 py-8 sm:px-8">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/20 rounded-full mb-4">
-              <Ticket className="text-primary text-2xl" />
+              <img src="/logo2.png" alt="IT Request Portal Logo" className="w-15 h-15" />
             </div>
             <h2 className="text-2xl font-bold text-foreground mb-2">Ticket Details</h2>
             <p className="text-muted-foreground">Fill out the form below to submit your IT support request</p>

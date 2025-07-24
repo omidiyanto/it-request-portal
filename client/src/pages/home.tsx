@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ticket, Users, Search, Plus } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import CreateRequest from "@/components/create-request";
 import SearchRequest from "@/components/search-request";
 
@@ -12,28 +12,37 @@ export default function Home() {
       <header className="bg-card/90 backdrop-blur-sm border-b border-border sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <Ticket className="text-primary text-2xl" />
-              <h1 className="text-xl font-semibold text-foreground">IT Request Portal</h1>
+            <div className="flex items-center">
+              <a href="/">
+                <img src="/logo.png" alt="IT Request Portal Logo" className="h-20 w-auto" />
+              </a>
             </div>
             
             {/* Navigation Tabs */}
-            <nav className="flex space-x-1 bg-muted p-1 rounded-lg">
+            <div className="flex">
               <button
                 onClick={() => setActiveTab("create")}
-                className={`nav-tab ${activeTab === "create" ? "active" : ""}`}
+                className={`flex items-center px-4 py-2 rounded-md ${
+                  activeTab === "create" 
+                    ? "bg-primary text-white" 
+                    : "bg-transparent text-gray-400 hover:text-white"
+                }`}
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Request
               </button>
               <button
                 onClick={() => setActiveTab("search")}
-                className={`nav-tab ${activeTab === "search" ? "active" : ""}`}
+                className={`flex items-center px-4 py-2 rounded-md ml-2 ${
+                  activeTab === "search" 
+                    ? "bg-transparent text-white border border-gray-700" 
+                    : "bg-transparent text-gray-400 hover:text-white"
+                }`}
               >
                 <Search className="w-4 h-4 mr-2" />
                 Search Request
               </button>
-            </nav>
+            </div>
           </div>
         </div>
       </header>

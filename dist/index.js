@@ -1,5 +1,26 @@
-// server/index.ts
+// server/env.ts
 import dotenv from "dotenv";
+import path from "path";
+import fs from "fs";
+var envPath = path.resolve(process.cwd(), ".env");
+if (fs.existsSync(envPath)) {
+  console.log(`Loading environment variables from ${envPath}`);
+  dotenv.config({ path: envPath, override: true });
+} else {
+  console.warn(`No .env file found at ${envPath}`);
+  dotenv.config({ override: true });
+}
+console.log("Environment variables loaded:");
+console.log("PORT:", process.env.PORT);
+console.log("ITOP_API_URL:", process.env.ITOP_API_URL);
+console.log("ITOP_API_VERSION:", process.env.ITOP_API_VERSION);
+console.log("ITOP_API_USER:", process.env.ITOP_API_USER);
+console.log("ITOP_API_PASSWORD exists:", !!process.env.ITOP_API_PASSWORD);
+console.log("ITOP_DEFAULT_ORG_ID:", process.env.ITOP_DEFAULT_ORG_ID);
+console.log("ITOP_SERVICE_NAME:", process.env.ITOP_SERVICE_NAME);
+console.log("ITOP_SERVICESUBCATEGORY_NAME:", process.env.ITOP_SERVICESUBCATEGORY_NAME);
+
+// server/index.ts
 import express2 from "express";
 
 // server/routes.ts
@@ -9,37 +30,39 @@ import { createServer } from "http";
 import axios from "axios";
 import FormData from "form-data";
 import https from "https";
-console.log("Environment variables check:");
-console.log("ITOP_API_URL exists:", !!process.env.ITOP_API_URL);
-console.log("ITOP_API_VERSION exists:", !!process.env.ITOP_API_VERSION);
-console.log("ITOP_API_USER exists:", !!process.env.ITOP_API_USER);
-console.log("ITOP_API_PASSWORD exists:", !!process.env.ITOP_API_PASSWORD ? "Yes (length: " + process.env.ITOP_API_PASSWORD.length + ")" : "No");
-console.log("ITOP_DEFAULT_ORG_ID exists:", !!process.env.ITOP_DEFAULT_ORG_ID);
-console.log("ITOP_SERVICE_NAME exists:", !!process.env.ITOP_SERVICE_NAME);
-console.log("ITOP_SERVICESUBCATEGORY_NAME exists:", !!process.env.ITOP_SERVICESUBCATEGORY_NAME);
 var axiosInstance = axios.create({
   httpsAgent: new https.Agent({
     rejectUnauthorized: false
     // Skip TLS verification
   })
 });
-var ITOP_API_URL = process.env.ITOP_API_URL || "https://servicedesk.satnusa.com/webservices/rest.php";
-console.log("Using ITOP_API_URL:", ITOP_API_URL);
-var ITOP_API_VERSION = process.env.ITOP_API_VERSION || "1.3";
-console.log("Using ITOP_API_VERSION:", ITOP_API_VERSION);
+if (!process.env.ITOP_API_URL) {
+  throw new Error("ITOP_API_URL environment variable is required");
+}
+var ITOP_API_URL = process.env.ITOP_API_URL;
+if (!process.env.ITOP_API_VERSION) {
+  throw new Error("ITOP_API_VERSION environment variable is required");
+}
+var ITOP_API_VERSION = process.env.ITOP_API_VERSION;
+if (!process.env.ITOP_API_USER || !process.env.ITOP_API_PASSWORD) {
+  throw new Error("ITOP_API_USER and ITOP_API_PASSWORD environment variables are required");
+}
 var ITOP_AUTH = {
-  user: process.env.ITOP_API_USER || "grafanaalerts",
-  password: process.env.ITOP_API_PASSWORD || "password"
-  // Replace with a default password for development
+  user: process.env.ITOP_API_USER,
+  password: process.env.ITOP_API_PASSWORD
 };
-console.log("Using ITOP_AUTH.user:", ITOP_AUTH.user);
-console.log("ITOP_AUTH.password is set:", !!ITOP_AUTH.password);
-var ITOP_DEFAULT_ORG_ID = process.env.ITOP_DEFAULT_ORG_ID || "3";
-console.log("Using ITOP_DEFAULT_ORG_ID:", ITOP_DEFAULT_ORG_ID);
-var ITOP_SERVICE_NAME = process.env.ITOP_SERVICE_NAME || "Hardware";
-console.log("Using ITOP_SERVICE_NAME:", ITOP_SERVICE_NAME);
-var ITOP_SERVICESUBCATEGORY_NAME = process.env.ITOP_SERVICESUBCATEGORY_NAME || "Hardware Installation";
-console.log("Using ITOP_SERVICESUBCATEGORY_NAME:", ITOP_SERVICESUBCATEGORY_NAME);
+if (!process.env.ITOP_DEFAULT_ORG_ID) {
+  throw new Error("ITOP_DEFAULT_ORG_ID environment variable is required");
+}
+var ITOP_DEFAULT_ORG_ID = process.env.ITOP_DEFAULT_ORG_ID;
+if (!process.env.ITOP_SERVICE_NAME) {
+  throw new Error("ITOP_SERVICE_NAME environment variable is required");
+}
+var ITOP_SERVICE_NAME = process.env.ITOP_SERVICE_NAME;
+if (!process.env.ITOP_SERVICESUBCATEGORY_NAME) {
+  throw new Error("ITOP_SERVICESUBCATEGORY_NAME environment variable is required");
+}
+var ITOP_SERVICESUBCATEGORY_NAME = process.env.ITOP_SERVICESUBCATEGORY_NAME;
 var MemStorage = class {
   departments;
   users;
@@ -561,11 +584,16 @@ var MemStorage = class {
             updatedAt: lastUpdateDate
           };
           this.tickets.set(id, ticket);
-          ticketsWithDetails.push({
+          const enrichedTicket = {
             ...ticket,
             department,
             user
-          });
+          };
+          if (iTopTicket.fields.agent_id_friendlyname) {
+            enrichedTicket.agent_id_friendlyname = iTopTicket.fields.agent_id_friendlyname;
+            console.log(`Added agent_id_friendlyname: ${iTopTicket.fields.agent_id_friendlyname} to ticket ${ticket.ticketId}`);
+          }
+          ticketsWithDetails.push(enrichedTicket);
         }
         return ticketsWithDetails;
       } catch (error) {
@@ -821,14 +849,14 @@ async function registerRoutes(app2) {
 
 // server/vite.ts
 import express from "express";
-import fs from "fs";
-import path2 from "path";
+import fs2 from "fs";
+import path3 from "path";
 import { createServer as createViteServer, createLogger } from "vite";
 
 // vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import path from "path";
+import path2 from "path";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 var vite_config_default = defineConfig({
   plugins: [
@@ -842,14 +870,14 @@ var vite_config_default = defineConfig({
   ],
   resolve: {
     alias: {
-      "@": path.resolve(import.meta.dirname, "client", "src"),
-      "@shared": path.resolve(import.meta.dirname, "shared"),
-      "@assets": path.resolve(import.meta.dirname, "attached_assets")
+      "@": path2.resolve(import.meta.dirname, "client", "src"),
+      "@shared": path2.resolve(import.meta.dirname, "shared"),
+      "@assets": path2.resolve(import.meta.dirname, "attached_assets")
     }
   },
-  root: path.resolve(import.meta.dirname, "client"),
+  root: path2.resolve(import.meta.dirname, "client"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path2.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true
   },
   server: {
@@ -895,13 +923,13 @@ async function setupVite(app2, server) {
   app2.use("*", async (req, res, next) => {
     const url = req.originalUrl;
     try {
-      const clientTemplate = path2.resolve(
+      const clientTemplate = path3.resolve(
         import.meta.dirname,
         "..",
         "client",
         "index.html"
       );
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
+      let template = await fs2.promises.readFile(clientTemplate, "utf-8");
       template = template.replace(
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid()}"`
@@ -915,29 +943,28 @@ async function setupVite(app2, server) {
   });
 }
 function serveStatic(app2) {
-  const distPath = path2.resolve(import.meta.dirname, "..", "dist", "public");
-  if (!fs.existsSync(distPath)) {
+  const distPath = path3.resolve(import.meta.dirname, "..", "dist", "public");
+  if (!fs2.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
   app2.use(express.static(distPath));
   app2.use("*", (_req, res) => {
-    res.sendFile(path2.resolve(distPath, "index.html"));
+    res.sendFile(path3.resolve(distPath, "index.html"));
   });
   log(`Serving static files from ${distPath}`);
 }
 
 // server/index.ts
 import cors from "cors";
-dotenv.config();
 var app = express2();
 app.use(express2.json());
 app.use(express2.urlencoded({ extended: false }));
 app.use(cors());
 app.use((req, res, next) => {
   const start = Date.now();
-  const path3 = req.path;
+  const path4 = req.path;
   let capturedJsonResponse = void 0;
   const originalResJson = res.json;
   res.json = function(bodyJson) {
@@ -946,8 +973,8 @@ app.use((req, res, next) => {
   };
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path3.startsWith("/api")) {
-      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
+    if (path4.startsWith("/api")) {
+      let logLine = `${req.method} ${path4} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
@@ -972,7 +999,10 @@ app.use((req, res, next) => {
   } else {
     serveStatic(app);
   }
-  const port = parseInt(process.env.PORT || "5000", 10);
+  if (!process.env.PORT) {
+    throw new Error("PORT environment variable is required");
+  }
+  const port = parseInt(process.env.PORT, 10);
   server.listen(
     {
       port,
