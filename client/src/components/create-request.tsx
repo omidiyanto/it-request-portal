@@ -113,7 +113,7 @@ export default function CreateRequest() {
     if (!allUsers) return [];
     
     let result = [...allUsers];
-    
+      
     // Sort alphabetically by name
     result.sort((a, b) => a.name.localeCompare(b.name));
     
@@ -353,10 +353,10 @@ export default function CreateRequest() {
                                       <Check className="h-4 w-4 text-primary" />
                                     )}
                                   </CommandItem>
-                                ))
-                              ) : (
+                            ))
+                          ) : (
                                 <CommandItem disabled>No users found</CommandItem>
-                              )}
+                          )}
                             </CommandGroup>
                           </Command>
                         </PopoverContent>
@@ -376,14 +376,14 @@ export default function CreateRequest() {
                       <FormLabel className="text-muted-foreground">
                         Extension {/* Remove required indicator */}
                       </FormLabel>
-                      <FormControl>
+                        <FormControl>
                         <Input
                           {...field}
                           className="bg-muted border-border"
                           placeholder="e.g., 1234 (optional)"
                           autoComplete="off"
                         />
-                      </FormControl>
+                        </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -407,16 +407,16 @@ export default function CreateRequest() {
 
   return (
     <>
-      <div className="max-w-2xl mx-auto">
-        <Card className="bg-card/80 backdrop-blur-sm border-border shadow-2xl">
-          <CardContent className="px-6 py-8 sm:px-8">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/20 rounded-full mb-4">
-                <Ticket className="text-primary text-2xl" />
-              </div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Ticket Details</h2>
-              <p className="text-muted-foreground">Fill out the form below to submit your IT support request</p>
+    <div className="max-w-2xl mx-auto">
+      <Card className="bg-card/80 backdrop-blur-sm border-border shadow-2xl">
+        <CardContent className="px-6 py-8 sm:px-8">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/20 rounded-full mb-4">
+              <Ticket className="text-primary text-2xl" />
             </div>
+            <h2 className="text-2xl font-bold text-foreground mb-2">Ticket Details</h2>
+            <p className="text-muted-foreground">Fill out the form below to submit your IT support request</p>
+          </div>
 
             {/* Display selected user and department */}
             <div className="mb-6 p-4 bg-muted/50 rounded-lg border border-border">
@@ -436,8 +436,8 @@ export default function CreateRequest() {
               </div>
             </div>
 
-            <Form {...stepTwoForm}>
-              <form onSubmit={stepTwoForm.handleSubmit(handleStepTwoSubmit)} className="space-y-6">
+          <Form {...stepTwoForm}>
+            <form onSubmit={stepTwoForm.handleSubmit(handleStepTwoSubmit)} className="space-y-6">
                 {/* 1. Device Type (new field) */}
                 <FormField
                   control={stepTwoForm.control}
@@ -503,31 +503,31 @@ export default function CreateRequest() {
                       </FormControl>
                       <FormMessage />
                     </FormItem>
-                  )}
+                )}
                 />
 
                 {/* 3. Issue Description */}
-                <FormField
-                  control={stepTwoForm.control}
-                  name="issueDescription"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-muted-foreground">
+              <FormField
+                control={stepTwoForm.control}
+                name="issueDescription"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-muted-foreground">
                         Issue Detail <span className="text-destructive">*</span>
-                      </FormLabel>
-                      <FormControl>
-                        <Textarea 
-                          {...field} 
-                          className="bg-muted border-border resize-none" 
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea 
+                        {...field} 
+                        className="bg-muted border-border resize-none" 
                           placeholder="Please describe the issue in detail"
                           autoComplete="off"
-                          rows={4}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        rows={4}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
                 {/* 4. Rack Location (changed to radio buttons) */}
                 <FormField
@@ -559,38 +559,38 @@ export default function CreateRequest() {
                   )}
                 />
 
-                <div className="flex space-x-3">
-                  <Button 
-                    type="button"
-                    variant="outline"
-                    onClick={handleBack}
-                    className="flex-1 bg-muted text-muted-foreground hover:bg-muted/80 transition-all duration-200"
-                  >
-                    Back
-                  </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={createTicketMutation.isPending}
-                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
-                  >
-                    {createTicketMutation.isPending ? (
-                      <>
-                        <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                        Creating...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="w-4 h-4 mr-2" />
-                        Submit Request
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
-      </div>
+              <div className="flex space-x-3">
+                <Button 
+                  type="button"
+                  variant="outline"
+                  onClick={handleBack}
+                  className="flex-1 bg-muted text-muted-foreground hover:bg-muted/80 transition-all duration-200"
+                >
+                  Back
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={createTicketMutation.isPending}
+                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
+                >
+                  {createTicketMutation.isPending ? (
+                    <>
+                      <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="w-4 h-4 mr-2" />
+                      Submit Request
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </div>
       
       {/* Print Ticket Modal */}
       {printTicketData && (

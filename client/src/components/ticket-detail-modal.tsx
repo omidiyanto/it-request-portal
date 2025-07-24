@@ -72,7 +72,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
       // Extract issue description
       const issueDescMatch = ticket.issueDescription.match(/<strong>ISSUE DESCRIPTION<\/strong>:\s*([^<]+)/i) || 
                            ticket.issueDescription.match(/ISSUE DESCRIPTION:\s*([^\n]+)/i) ||
-                           ticket.issueDescription.match(/<p><strong>ISSUE DESCRIPTION<\/strong>:(.*?)<\/p>/i);
+                             ticket.issueDescription.match(/<p><strong>ISSUE DESCRIPTION<\/strong>:(.*?)<\/p>/i);
       
       let issueDescription = "";
       if (issueDescMatch && issueDescMatch[1]) {
@@ -161,7 +161,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       onClose();
     },
-  });
+    });
 
   const handleCompleteTicket = () => {
     setShowCompletionModal(false);
@@ -180,12 +180,12 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
             <Badge className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(ticket.status)}`}>
               {getStatusLabel(ticket.status)}
             </Badge>
-          </div>
+              </div>
           <h2 className="text-xl font-semibold text-foreground">{ticket.title}</h2>
           <div className="flex items-center mt-2 text-sm text-muted-foreground">
             <User className="w-3.5 h-3.5 mr-1.5" />
             <span>{ticket.user.name}</span>
-          </div>
+              </div>
           
           {/* Timestamps */}
           <div className="grid grid-cols-2 gap-2 mt-4 text-xs text-muted-foreground">
@@ -197,8 +197,8 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
               <CalendarClock className="w-3.5 h-3.5 mr-1.5" />
               <span>Updated: {formatDate(ticket.updatedAt)}</span>
             </div>
-          </div>
-        </div>
+              </div>
+              </div>
 
         <div className="p-6 space-y-6">
           {/* Ticket Details Cards */}
@@ -210,7 +210,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
               </div>
               <span className="text-foreground">{ticket.department.name}</span>
             </div>
-            
+
             <div className="bg-muted/30 rounded-lg p-4 flex flex-col">
               <div className="flex items-center text-sm font-medium text-muted-foreground mb-2">
                 <Info className="w-4 h-4 mr-2" />
@@ -218,7 +218,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
               </div>
               <span className="text-foreground">{extractedData.deviceType}</span>
             </div>
-            
+
             <div className="bg-muted/30 rounded-lg p-4 flex flex-col">
               <div className="flex items-center text-sm font-medium text-muted-foreground mb-2">
                 <Phone className="w-4 h-4 mr-2" />
@@ -234,7 +234,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
               </div>
               <span className="text-foreground">{ticket.rackLocation}</span>
             </div>
-            
+
             {/* Show PIC if available */}
             {getPersonInCharge() && (
               <div className="bg-muted/30 rounded-lg p-4 flex flex-col col-span-2">
@@ -259,17 +259,17 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
           </div>
 
           {/* Mark as Complete Button - only for resolved tickets */}
-          {canMarkComplete && (
+            {canMarkComplete && (
             <div className="pt-4">
-              <Button
-                onClick={() => setShowCompletionModal(true)}
-                className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
-              >
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Mark as Complete
-              </Button>
-            </div>
-          )}
+                <Button
+                  onClick={() => setShowCompletionModal(true)}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Mark as Complete
+                </Button>
+              </div>
+            )}
           
           {/* Print Ticket Button - available for all tickets */}
           <div className="pt-4">
@@ -282,15 +282,15 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
               Print Ticket
             </Button>
           </div>
-        </div>
-      </DialogContent>
-      
+          </div>
+        </DialogContent>
+
       {/* Completion Confirmation Modal */}
       {showCompletionModal && (
-        <CompletionModal
-          ticket={ticket}
-          isOpen={showCompletionModal}
-          onClose={() => setShowCompletionModal(false)}
+      <CompletionModal
+        ticket={ticket}
+        isOpen={showCompletionModal}
+        onClose={() => setShowCompletionModal(false)}
           onSuccess={handleCompleteTicket}
         />
       )}

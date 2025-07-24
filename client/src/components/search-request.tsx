@@ -32,7 +32,7 @@ const extractFieldFromHtml = (html: string, fieldName: string): string => {
   
   return '';
 };
-
+  
 // Helper function to extract issue description from HTML content
 const extractIssueDescription = (html: string): string => {
   return extractFieldFromHtml(html, "ISSUE DESCRIPTION") || stripHtml(html);
@@ -266,65 +266,65 @@ export default function SearchRequest() {
               const personInCharge = getPersonInCharge(ticket);
               
               return (
-                <div
-                  key={ticket.id}
-                  className="ticket-card"
-                  onClick={() => setSelectedTicket(ticket)}
-                >
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
-                          <TicketIcon className="text-primary w-4 h-4" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-foreground">{ticket.ticketId}</h3>
-                          <p className="text-sm text-muted-foreground">{ticket.user.name}</p>
-                        </div>
+              <div
+                key={ticket.id}
+                className="ticket-card"
+                onClick={() => setSelectedTicket(ticket)}
+              >
+                <div className="p-6">
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center">
+                        <TicketIcon className="text-primary w-4 h-4" />
                       </div>
-                      <Badge className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(ticket.status)}`}>
-                        {getStatusLabel(ticket.status)}
-                      </Badge>
+                      <div>
+                        <h3 className="font-semibold text-foreground">{ticket.ticketId}</h3>
+                        <p className="text-sm text-muted-foreground">{ticket.user.name}</p>
+                      </div>
                     </div>
+                    <Badge className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(ticket.status)}`}>
+                      {getStatusLabel(ticket.status)}
+                    </Badge>
+                  </div>
                     
                     {/* Ticket title */}
                     <h4 className="font-medium text-foreground mb-3 line-clamp-1">{ticket.title}</h4>
-                    
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Department:</span>
-                        <span className="text-foreground">{ticket.department.name}</span>
-                      </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Department:</span>
+                      <span className="text-foreground">{ticket.department.name}</span>
+                    </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Device Type:</span>
                         <span className="text-foreground">{deviceType}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Extension:</span>
-                        <span className="text-foreground">{ticket.extension}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Location:</span>
-                        <span className="text-foreground">{ticket.rackLocation}</span>
-                      </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Extension:</span>
+                      <span className="text-foreground">{ticket.extension}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Location:</span>
+                      <span className="text-foreground">{ticket.rackLocation}</span>
+                    </div>
                       
                       {/* Show PIC if available */}
                       {personInCharge && (
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">PIC:</span>
                           <span className="text-foreground">{personInCharge}</span>
-                        </div>
+                  </div>
                       )}
-                    </div>
-                    
-                    <div className="mt-4 text-xs text-muted-foreground">
-                      Created: {formatDate(ticket.createdAt)}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      Last Updated: {formatDate(ticket.updatedAt)}
-                    </div>
+                  </div>
+                  
+                  <div className="mt-4 text-xs text-muted-foreground">
+                    Created: {formatDate(ticket.createdAt)}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    Last Updated: {formatDate(ticket.updatedAt)}
                   </div>
                 </div>
+              </div>
               );
             })
           )}

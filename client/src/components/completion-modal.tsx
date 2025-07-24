@@ -132,7 +132,7 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
                 <ShieldCheck className="w-4 h-4 text-muted-foreground" />
                 <FormLabel className="text-sm font-medium text-muted-foreground m-0">
                   Human Verification
-                </FormLabel>
+              </FormLabel>
               </div>
               
               <div className="flex items-center space-x-3">
@@ -171,19 +171,19 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
               render={({ field }) => (
                 <FormItem className="bg-muted/30 rounded-lg p-5 border border-border/50">
                   <div className="flex items-start gap-3">
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
                         className="mt-1 border-border data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600"
-                      />
-                    </FormControl>
+                    />
+                  </FormControl>
                     <div className="space-y-1">
                       <FormLabel className="text-sm font-medium text-foreground">
                         Confirmation
                       </FormLabel>
                       <p className="text-xs text-muted-foreground leading-relaxed">
-                        I confirm that this ticket has been completely resolved and all issues have been addressed satisfactorily.
+                    I confirm that this ticket has been completely resolved and all issues have been addressed satisfactorily.
                       </p>
                     </div>
                   </div>
