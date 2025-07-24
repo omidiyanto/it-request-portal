@@ -1,30 +1,49 @@
 import { departments, users, tickets, type Department, type User, type Ticket, type InsertDepartment, type InsertUser, type InsertTicket, type TicketWithDetails } from "@shared/schema";
 import axios from "axios";
 import FormData from "form-data";
+import https from "https";
+
+// Create an axios instance with TLS verification disabled for HTTPS requests
+const axiosInstance = axios.create({
+  httpsAgent: new https.Agent({
+    rejectUnauthorized: false // Skip TLS verification
+  })
+});
 
 // iTop API configuration from environment variables
+if (!process.env.ITOP_API_URL) {
+  throw new Error("ITOP_API_URL environment variable is required");
+}
 const ITOP_API_URL = process.env.ITOP_API_URL;
-if (!ITOP_API_URL) console.log("Warning: ITOP_API_URL environment variable not found");
 
+if (!process.env.ITOP_API_VERSION) {
+  throw new Error("ITOP_API_VERSION environment variable is required");
+}
 const ITOP_API_VERSION = process.env.ITOP_API_VERSION;
-if (!ITOP_API_VERSION) console.log("Warning: ITOP_API_VERSION environment variable not found");
 
+if (!process.env.ITOP_API_USER || !process.env.ITOP_API_PASSWORD) {
+  throw new Error("ITOP_API_USER and ITOP_API_PASSWORD environment variables are required");
+}
 const ITOP_AUTH = {
   user: process.env.ITOP_API_USER,
   password: process.env.ITOP_API_PASSWORD
 };
-if (!ITOP_AUTH.user) console.log("Warning: ITOP_API_USER environment variable not found");
-if (!ITOP_AUTH.password) console.log("Warning: ITOP_API_PASSWORD environment variable not found");
 
+if (!process.env.ITOP_DEFAULT_ORG_ID) {
+  throw new Error("ITOP_DEFAULT_ORG_ID environment variable is required");
+}
 const ITOP_DEFAULT_ORG_ID = process.env.ITOP_DEFAULT_ORG_ID;
-if (!ITOP_DEFAULT_ORG_ID) console.log("Warning: ITOP_DEFAULT_ORG_ID environment variable not found");
 
 // Service and ServiceSubcategory configuration
+if (!process.env.ITOP_SERVICE_NAME) {
+  throw new Error("ITOP_SERVICE_NAME environment variable is required");
+}
 const ITOP_SERVICE_NAME = process.env.ITOP_SERVICE_NAME;
-if (!ITOP_SERVICE_NAME) console.log("Warning: ITOP_SERVICE_NAME environment variable not found");
 
+if (!process.env.ITOP_SERVICESUBCATEGORY_NAME) {
+  throw new Error("ITOP_SERVICESUBCATEGORY_NAME environment variable is required");
+}
 const ITOP_SERVICESUBCATEGORY_NAME = process.env.ITOP_SERVICESUBCATEGORY_NAME;
-if (!ITOP_SERVICESUBCATEGORY_NAME) console.log("Warning: ITOP_SERVICESUBCATEGORY_NAME environment variable not found");
 
 // iTop API response types
 interface ITopTeam {
@@ -380,10 +399,12 @@ export class MemStorage implements IStorage {
   async updateTicketStatus(ticketId: string, status: string): Promise<TicketWithDetails> {
     try {
       // Try to update the status in iTop first
+      console.log("Preparing to update ticket status in iTop");
+      
       const formData = new FormData();
-      formData.append('version', ITOP_API_VERSION || "1.3"); // Use default if not found
-      formData.append('auth_user', ITOP_AUTH.user || "admin"); // Use default if not found
-      formData.append('auth_pwd', ITOP_AUTH.password || "Passw0rd"); // Use default if not found
+      formData.append('version', ITOP_API_VERSION);
+      formData.append('auth_user', ITOP_AUTH.user);
+      formData.append('auth_pwd', ITOP_AUTH.password);
       
       // Prepare the JSON data for updating the ticket
       const jsonData = {
@@ -398,28 +419,38 @@ export class MemStorage implements IStorage {
       
       formData.append('json_data', JSON.stringify(jsonData));
 
-      const response = await axios.post(ITOP_API_URL || "http://192.168.0.250:8111/webservices/rest.php", formData, {
-        headers: {
-          ...formData.getHeaders()
-        }
-      });
+      try {
+        const response = await axiosInstance.post(ITOP_API_URL, formData, {
+          headers: {
+            ...formData.getHeaders()
+          }
+        });
 
-      console.log("iTop API update status response:", JSON.stringify(response.data, null, 2));
+        console.log("iTop API update status response:", JSON.stringify(response.data, null, 2));
+      } catch (error: any) {
+        console.error("Error in iTop API request for updating ticket status:", error.message);
+        if (error.response) {
+          console.error("Response status:", error.response.status);
+          console.error("Response data:", error.response.data);
+        }
+        // Continue with local update even if iTop update fails
+        console.log("Continuing with local update despite iTop API error");
+      }
+      
+      // Update the local ticket
+      const ticket = Array.from(this.tickets.values()).find(t => t.ticketId === ticketId);
+      if (!ticket) {
+        throw new Error("Ticket not found");
+      }
+      
+      ticket.status = status;
+      ticket.updatedAt = new Date();
+      this.tickets.set(ticket.id, ticket);
+      return this.enrichTicket(ticket);
     } catch (error) {
-      console.error("Error updating ticket status in iTop:", error);
-      // Continue with local update even if iTop update fails
+      console.error("Error updating ticket status:", error);
+      throw error;
     }
-    
-    // Update the local ticket
-    const ticket = Array.from(this.tickets.values()).find(t => t.ticketId === ticketId);
-    if (!ticket) {
-      throw new Error("Ticket not found");
-    }
-    
-    ticket.status = status;
-    ticket.updatedAt = new Date();
-    this.tickets.set(ticket.id, ticket);
-    return this.enrichTicket(ticket);
   }
 
   async searchTicketsByUser(userName: string): Promise<TicketWithDetails[]> {
@@ -460,10 +491,12 @@ export class MemStorage implements IStorage {
   // iTop API integration methods
   async fetchTeamsFromITop(): Promise<Department[]> {
     try {
+      console.log("Preparing to fetch teams from iTop");
+      
       const formData = new FormData();
-      formData.append('version', ITOP_API_VERSION || "1.3"); // Use default if not found
-      formData.append('auth_user', ITOP_AUTH.user || "admin"); // Use default if not found
-      formData.append('auth_pwd', ITOP_AUTH.password || "Passw0rd"); // Use default if not found
+      formData.append('version', ITOP_API_VERSION);
+      formData.append('auth_user', ITOP_AUTH.user);
+      formData.append('auth_pwd', ITOP_AUTH.password);
       formData.append('json_data', JSON.stringify({
         operation: "core/get",
         class: "Team",
@@ -471,35 +504,48 @@ export class MemStorage implements IStorage {
         output_fields: "name,persons_list"
       }));
 
-      const response = await axios.post(ITOP_API_URL || "http://192.168.0.250:8111/webservices/rest.php", formData, {
-        headers: {
-          ...formData.getHeaders()
+      console.log("Sending request to iTop API:", ITOP_API_URL);
+      
+      try {
+        const response = await axiosInstance.post(ITOP_API_URL, formData, {
+          headers: {
+            ...formData.getHeaders()
+          }
+        });
+
+        console.log("iTop API response status:", response.status);
+        
+        const data = response.data as ITopTeamResponse;
+        
+        if (data.code !== 0) {
+          throw new Error(`iTop API error: ${data.message}`);
         }
-      });
 
-      const data = response.data as ITopTeamResponse;
-      
-      if (data.code !== 0) {
-        throw new Error(`iTop API error: ${data.message}`);
+        // Clear existing departments
+        this.departments.clear();
+        this.currentDepartmentId = 1;
+        
+        // Convert iTop teams to departments
+        const departments: Department[] = Object.values(data.objects).map(team => {
+          const id = this.currentDepartmentId++;
+          const department: Department = {
+            id,
+            name: team.fields.name,
+            value: team.fields.name.toLowerCase().replace(/\s+/g, '-')
+          };
+          this.departments.set(id, department);
+          return department;
+        });
+
+        return departments;
+      } catch (error: any) {
+        console.error("Error in iTop API request:", error.message);
+        if (error.response) {
+          console.error("Response status:", error.response.status);
+          console.error("Response data:", error.response.data);
+        }
+        throw error;
       }
-
-      // Clear existing departments
-      this.departments.clear();
-      this.currentDepartmentId = 1;
-      
-      // Convert iTop teams to departments
-      const departments: Department[] = Object.values(data.objects).map(team => {
-        const id = this.currentDepartmentId++;
-        const department: Department = {
-          id,
-          name: team.fields.name,
-          value: team.fields.name.toLowerCase().replace(/\s+/g, '-')
-        };
-        this.departments.set(id, department);
-        return department;
-      });
-
-      return departments;
     } catch (error) {
       console.error("Error fetching teams from iTop:", error);
       throw error;
@@ -508,11 +554,13 @@ export class MemStorage implements IStorage {
 
   async fetchUsersFromITop(): Promise<User[]> {
     try {
+      console.log("Preparing to fetch users from iTop");
+      
       // First fetch teams to get team-user relationships
       const formData = new FormData();
-      formData.append('version', ITOP_API_VERSION || "1.3"); // Use default if not found
-      formData.append('auth_user', ITOP_AUTH.user || "admin"); // Use default if not found
-      formData.append('auth_pwd', ITOP_AUTH.password || "Passw0rd"); // Use default if not found
+      formData.append('version', ITOP_API_VERSION);
+      formData.append('auth_user', ITOP_AUTH.user);
+      formData.append('auth_pwd', ITOP_AUTH.password);
       formData.append('json_data', JSON.stringify({
         operation: "core/get",
         class: "Team",
@@ -520,76 +568,87 @@ export class MemStorage implements IStorage {
         output_fields: "name,persons_list"
       }));
 
-      const response = await axios.post(ITOP_API_URL || "http://192.168.0.250:8111/webservices/rest.php", formData, {
-        headers: {
-          ...formData.getHeaders()
-        }
-      });
-
-      const data = response.data as ITopTeamResponse;
-      
-      if (data.code !== 0) {
-        throw new Error(`iTop API error: ${data.message}`);
-      }
-
-      // Clear existing users
-      this.users.clear();
-      this.currentUserId = 1;
-      
-      // Make sure departments are loaded
-      if (this.departments.size === 0) {
-        await this.fetchTeamsFromITop();
-      }
-
-      // Map to store users with their team assignments
-      const userMap = new Map<string, {
-        name: string,
-        teams: string[]
-      }>();
-
-      // Process team data to extract users and their teams
-      Object.values(data.objects).forEach(team => {
-        const teamName = team.fields.name;
-        
-        team.fields.persons_list.forEach(person => {
-          const personId = person.person_id;
-          const personName = person.person_id_friendlyname;
-          
-          if (userMap.has(personId)) {
-            userMap.get(personId)?.teams.push(teamName);
-          } else {
-            userMap.set(personId, {
-              name: personName,
-              teams: [teamName]
-            });
+      try {
+        const response = await axiosInstance.post(ITOP_API_URL, formData, {
+          headers: {
+            ...formData.getHeaders()
           }
         });
-      });
 
-      // Convert to User objects
-      const users: User[] = [];
-      
-      userMap.forEach((userData, personId) => {
-        // Assign user to first team (department) they belong to
-        const primaryTeam = userData.teams[0];
-        const departmentEntry = Array.from(this.departments.values())
-          .find(dept => dept.name === primaryTeam);
-          
-        if (departmentEntry) {
-          const id = this.currentUserId++;
-          const user: User = {
-            id,
-            name: userData.name,
-            value: userData.name.toLowerCase().replace(/\s+/g, '.'),
-            departmentId: departmentEntry.id
-          };
-          
-          this.users.set(id, user);
-          users.push(user);
+        console.log("iTop API users response status:", response.status);
+        
+        const data = response.data as ITopTeamResponse;
+        
+        if (data.code !== 0) {
+          throw new Error(`iTop API error: ${data.message}`);
         }
-      });
 
-      return users;
+        // Clear existing users
+        this.users.clear();
+        this.currentUserId = 1;
+        
+        // Make sure departments are loaded
+        if (this.departments.size === 0) {
+          await this.fetchTeamsFromITop();
+        }
+
+        // Map to store users with their team assignments
+        const userMap = new Map<string, {
+          name: string,
+          teams: string[]
+        }>();
+
+        // Process team data to extract users and their teams
+        Object.values(data.objects).forEach(team => {
+          const teamName = team.fields.name;
+          
+          team.fields.persons_list.forEach(person => {
+            const personId = person.person_id;
+            const personName = person.person_id_friendlyname;
+            
+            if (userMap.has(personId)) {
+              userMap.get(personId)?.teams.push(teamName);
+            } else {
+              userMap.set(personId, {
+                name: personName,
+                teams: [teamName]
+              });
+            }
+          });
+        });
+
+        // Convert to User objects
+        const users: User[] = [];
+        
+        userMap.forEach((userData, personId) => {
+          // Assign user to first team (department) they belong to
+          const primaryTeam = userData.teams[0];
+          const departmentEntry = Array.from(this.departments.values())
+            .find(dept => dept.name === primaryTeam);
+            
+          if (departmentEntry) {
+            const id = this.currentUserId++;
+            const user: User = {
+              id,
+              name: userData.name,
+              value: userData.name.toLowerCase().replace(/\s+/g, '.'),
+              departmentId: departmentEntry.id
+            };
+            
+            this.users.set(id, user);
+            users.push(user);
+          }
+        });
+
+        return users;
+      } catch (error: any) {
+        console.error("Error in iTop API request for users:", error.message);
+        if (error.response) {
+          console.error("Response status:", error.response.status);
+          console.error("Response data:", error.response.data);
+        }
+        throw error;
+      }
     } catch (error) {
       console.error("Error fetching users from iTop:", error);
       throw error;
@@ -598,6 +657,8 @@ export class MemStorage implements IStorage {
 
   async fetchTicketsFromITop(): Promise<TicketWithDetails[]> {
     try {
+      console.log("Preparing to fetch tickets from iTop");
+      
       // Make sure departments and users are loaded
       if (this.departments.size === 0) {
         await this.fetchTeamsFromITop();
@@ -608,9 +669,9 @@ export class MemStorage implements IStorage {
       }
 
       const formData = new FormData();
-      formData.append('version', ITOP_API_VERSION || "1.3"); // Use default if not found
-      formData.append('auth_user', ITOP_AUTH.user || "admin"); // Use default if not found
-      formData.append('auth_pwd', ITOP_AUTH.password || "Passw0rd"); // Use default if not found
+      formData.append('version', ITOP_API_VERSION);
+      formData.append('auth_user', ITOP_AUTH.user);
+      formData.append('auth_pwd', ITOP_AUTH.password);
       
       // Create a query that filters by service_name and servicesubcategory_name if they are provided
       let query = "SELECT UserRequest";
@@ -627,143 +688,154 @@ export class MemStorage implements IStorage {
         output_fields: "*"
       }));
 
-      const response = await axios.post(ITOP_API_URL || "http://192.168.0.250:8111/webservices/rest.php", formData, {
-        headers: {
-          ...formData.getHeaders()
+      try {
+        const response = await axiosInstance.post(ITOP_API_URL, formData, {
+          headers: {
+            ...formData.getHeaders()
+          }
+        });
+
+        console.log("iTop API tickets response status:", response.status);
+        
+        const data = response.data as ITopTicketResponse;
+        
+        if (data.code !== 0) {
+          throw new Error(`iTop API error: ${data.message}`);
         }
-      });
 
-      const data = response.data as ITopTicketResponse;
-      
-      if (data.code !== 0) {
-        throw new Error(`iTop API error: ${data.message}`);
-      }
+        // Clear existing tickets
+        this.tickets.clear();
+        this.currentTicketId = 1;
+        this.ticketCounter = 1;
 
-      // Clear existing tickets
-      this.tickets.clear();
-      this.currentTicketId = 1;
-      this.ticketCounter = 1;
+        // Convert iTop tickets to our ticket format
+        const ticketsWithDetails: TicketWithDetails[] = [];
 
-      // Convert iTop tickets to our ticket format
-      const ticketsWithDetails: TicketWithDetails[] = [];
-
-      for (const ticketKey in data.objects) {
-        const iTopTicket = data.objects[ticketKey];
-        
-        // Find user by name
-        const callerName = iTopTicket.fields.caller_name;
-        let user = Array.from(this.users.values()).find(u => 
-          u.name.includes(callerName) || callerName.includes(u.name)
-        );
-        
-        // If user not found, create a placeholder user
-        if (!user) {
-          const defaultDeptId = this.departments.size > 0 ? 
-            Array.from(this.departments.values())[0].id : 1;
+        for (const ticketKey in data.objects) {
+          const iTopTicket = data.objects[ticketKey];
+          
+          // Find user by name
+          const callerName = iTopTicket.fields.caller_name;
+          let user = Array.from(this.users.values()).find(u => 
+            u.name.includes(callerName) || callerName.includes(u.name)
+          );
+          
+          // If user not found, create a placeholder user
+          if (!user) {
+            const defaultDeptId = this.departments.size > 0 ? 
+              Array.from(this.departments.values())[0].id : 1;
+              
+            user = {
+              id: this.currentUserId++,
+              name: iTopTicket.fields.caller_id_friendlyname || callerName,
+              value: (iTopTicket.fields.caller_id_friendlyname || callerName).toLowerCase().replace(/\s+/g, '.'),
+              departmentId: defaultDeptId
+            };
             
-          user = {
-            id: this.currentUserId++,
-            name: iTopTicket.fields.caller_id_friendlyname || callerName,
-            value: (iTopTicket.fields.caller_id_friendlyname || callerName).toLowerCase().replace(/\s+/g, '.'),
-            departmentId: defaultDeptId
-          };
-          
-          this.users.set(user.id, user);
-        }
-        
-        // Find department by team name
-        let department = Array.from(this.departments.values()).find(d => 
-          d.name === iTopTicket.fields.team_name
-        );
-        
-        // If department not found, use user's department or create one
-        if (!department) {
-          department = this.departments.get(user.departmentId) || {
-            id: this.currentDepartmentId++,
-            name: iTopTicket.fields.team_name || "Unknown Department",
-            value: (iTopTicket.fields.team_name || "unknown").toLowerCase().replace(/\s+/g, '-')
-          };
-          
-          if (!this.departments.has(department.id)) {
-            this.departments.set(department.id, department);
-          }
-        }
-
-        const id = this.currentTicketId++;
-        
-        // Use start_date for createdAt and last_update for updatedAt
-        const startDate = iTopTicket.fields.start_date ? new Date(iTopTicket.fields.start_date) : new Date();
-        const lastUpdateDate = iTopTicket.fields.last_update ? new Date(iTopTicket.fields.last_update) : startDate;
-        
-        // Use the status directly from iTop
-        const status = iTopTicket.fields.status || "new";
-
-        // Extract extension, rack location, and issue description from description using regex
-        let extension = "N/A";
-        let rackLocation = "N/A";
-        let issueDescription = "";
-        let fullDescription = iTopTicket.fields.description || iTopTicket.fields.title;
-
-        if (iTopTicket.fields.description) {
-          // Extract extension
-          const extensionMatch = iTopTicket.fields.description.match(/<strong>EXTENSION<\/strong>:\s*([^<]+)/i) || 
-                                 iTopTicket.fields.description.match(/EXTENSION:\s*([^\n]+)/i);
-          if (extensionMatch && extensionMatch[1]) {
-            extension = extensionMatch[1].trim();
+            this.users.set(user.id, user);
           }
           
-          // Extract rack location
-          const rackLocationMatch = iTopTicket.fields.description.match(/<strong>RACK LOCATION<\/strong>:\s*([^<]+)/i) || 
-                                    iTopTicket.fields.description.match(/RACK LOCATION:\s*([^\n]+)/i);
-          if (rackLocationMatch && rackLocationMatch[1]) {
-            rackLocation = rackLocationMatch[1].trim();
-          }
+          // Find department by team name
+          let department = Array.from(this.departments.values()).find(d => 
+            d.name === iTopTicket.fields.team_name
+          );
           
-          // Extract issue description
-          const issueDescMatch = iTopTicket.fields.description.match(/<strong>ISSUE DESCRIPTION<\/strong>:\s*([^<]+)/i) || 
-                                 iTopTicket.fields.description.match(/ISSUE DESCRIPTION:\s*([^<]+)/i) ||
-                                 iTopTicket.fields.description.match(/<p><strong>ISSUE DESCRIPTION<\/strong>:(.*?)<\/p>/i);
-          
-          if (issueDescMatch && issueDescMatch[1]) {
-            issueDescription = issueDescMatch[1].trim();
-          } else {
-            // If no match found, try to extract the last part of the description after RACK LOCATION
-            const parts = iTopTicket.fields.description.split(/RACK LOCATION:.*?\n/i);
-            if (parts.length > 1) {
-              issueDescription = parts[1].trim();
+          // If department not found, use user's department or create one
+          if (!department) {
+            department = this.departments.get(user.departmentId) || {
+              id: this.currentDepartmentId++,
+              name: iTopTicket.fields.team_name || "Unknown Department",
+              value: (iTopTicket.fields.team_name || "unknown").toLowerCase().replace(/\s+/g, '-')
+            };
+            
+            if (!this.departments.has(department.id)) {
+              this.departments.set(department.id, department);
             }
           }
+
+          const id = this.currentTicketId++;
           
-          // If still no issue description, use a default
-          if (!issueDescription) {
-            issueDescription = "No issue description provided";
+          // Use start_date for createdAt and last_update for updatedAt
+          const startDate = iTopTicket.fields.start_date ? new Date(iTopTicket.fields.start_date) : new Date();
+          const lastUpdateDate = iTopTicket.fields.last_update ? new Date(iTopTicket.fields.last_update) : startDate;
+          
+          // Use the status directly from iTop
+          const status = iTopTicket.fields.status || "new";
+
+          // Extract extension, rack location, and issue description from description using regex
+          let extension = "N/A";
+          let rackLocation = "N/A";
+          let issueDescription = "";
+          let fullDescription = iTopTicket.fields.description || iTopTicket.fields.title;
+
+          if (iTopTicket.fields.description) {
+            // Extract extension
+            const extensionMatch = iTopTicket.fields.description.match(/<strong>EXTENSION<\/strong>:\s*([^<]+)/i) || 
+                                 iTopTicket.fields.description.match(/EXTENSION:\s*([^\n]+)/i);
+            if (extensionMatch && extensionMatch[1]) {
+              extension = extensionMatch[1].trim();
+            }
+            
+            // Extract rack location
+            const rackLocationMatch = iTopTicket.fields.description.match(/<strong>RACK LOCATION<\/strong>:\s*([^<]+)/i) || 
+                                    iTopTicket.fields.description.match(/RACK LOCATION:\s*([^\n]+)/i);
+            if (rackLocationMatch && rackLocationMatch[1]) {
+              rackLocation = rackLocationMatch[1].trim();
+            }
+            
+            // Extract issue description
+            const issueDescMatch = iTopTicket.fields.description.match(/<strong>ISSUE DESCRIPTION<\/strong>:\s*([^<]+)/i) || 
+                                 iTopTicket.fields.description.match(/ISSUE DESCRIPTION:\s*([^<]+)/i) ||
+                                 iTopTicket.fields.description.match(/<p><strong>ISSUE DESCRIPTION<\/strong>:(.*?)<\/p>/i);
+            
+            if (issueDescMatch && issueDescMatch[1]) {
+              issueDescription = issueDescMatch[1].trim();
+            } else {
+              // If no match found, try to extract the last part of the description after RACK LOCATION
+              const parts = iTopTicket.fields.description.split(/RACK LOCATION:.*?\n/i);
+              if (parts.length > 1) {
+                issueDescription = parts[1].trim();
+              }
+            }
+            
+            // If still no issue description, use a default
+            if (!issueDescription) {
+              issueDescription = "No issue description provided";
+            }
           }
+
+          const ticket: Ticket = {
+            id,
+            ticketId: iTopTicket.fields.ref,
+            title: iTopTicket.fields.title,
+            departmentId: department.id,
+            userId: user.id,
+            extension,
+            rackLocation,
+            issueDescription: fullDescription, // Keep the full HTML description for display
+            status,
+            createdAt: startDate,
+            updatedAt: lastUpdateDate
+          };
+          
+          this.tickets.set(id, ticket);
+          
+          ticketsWithDetails.push({
+            ...ticket,
+            department,
+            user
+          });
         }
 
-        const ticket: Ticket = {
-          id,
-          ticketId: iTopTicket.fields.ref,
-          title: iTopTicket.fields.title,
-          departmentId: department.id,
-          userId: user.id,
-          extension,
-          rackLocation,
-          issueDescription: fullDescription, // Keep the full HTML description for display
-          status,
-          createdAt: startDate,
-          updatedAt: lastUpdateDate
-        };
-        
-        this.tickets.set(id, ticket);
-        
-        ticketsWithDetails.push({
-          ...ticket,
-          department,
-          user
-        });
+        return ticketsWithDetails;
+      } catch (error: any) {
+        console.error("Error in iTop API request for tickets:", error.message);
+        if (error.response) {
+          console.error("Response status:", error.response.status);
+          console.error("Response data:", error.response.data);
+        }
+        throw error;
       }
-
-      return ticketsWithDetails;
     } catch (error) {
       console.error("Error fetching tickets from iTop:", error);
       throw error;
@@ -772,10 +844,12 @@ export class MemStorage implements IStorage {
 
   async createTicketInITop(ticket: InsertTicket, userName: string): Promise<string> {
     try {
+      console.log("Preparing to create ticket in iTop");
+      
       const formData = new FormData();
-      formData.append('version', ITOP_API_VERSION || "1.3"); // Use default if not found
-      formData.append('auth_user', ITOP_AUTH.user || "admin"); // Use default if not found
-      formData.append('auth_pwd', ITOP_AUTH.password || "Passw0rd"); // Use default if not found
+      formData.append('version', ITOP_API_VERSION);
+      formData.append('auth_user', ITOP_AUTH.user);
+      formData.append('auth_pwd', ITOP_AUTH.password);
       
       // Prepare the JSON data for ticket creation
       const jsonData = {
@@ -785,98 +859,109 @@ export class MemStorage implements IStorage {
         output_fields: "ref",
         fields: {
           caller_id: `SELECT Person WHERE friendlyname="${userName}"`,
-          org_id: ITOP_DEFAULT_ORG_ID || "3", // Use default if not found
+          org_id: ITOP_DEFAULT_ORG_ID,
           origin: "portal",
           title: ticket.title,
           description: ticket.issueDescription,
           urgency: "4",
           impact: "3",
           status: "new",
-          service_id: `SELECT Service WHERE name="${ITOP_SERVICE_NAME || 'Computers and peripherals'}"`,
-          servicesubcategory_id: `SELECT ServiceSubcategory WHERE name="${ITOP_SERVICESUBCATEGORY_NAME || 'New desktop ordering'}"`
+          service_id: `SELECT Service WHERE name="${ITOP_SERVICE_NAME}"`,
+          servicesubcategory_id: `SELECT ServiceSubcategory WHERE name="${ITOP_SERVICESUBCATEGORY_NAME}"`
         }
       };
       
+      console.log("Create ticket payload:", JSON.stringify(jsonData));
       formData.append('json_data', JSON.stringify(jsonData));
 
-      const response = await axios.post(ITOP_API_URL || "http://192.168.0.250:8111/webservices/rest.php", formData, {
-        headers: {
-          ...formData.getHeaders()
-        }
-      });
+      try {
+        const response = await axiosInstance.post(ITOP_API_URL, formData, {
+          headers: {
+            ...formData.getHeaders()
+          }
+        });
 
-      console.log("iTop API create ticket response:", JSON.stringify(response.data, null, 2));
-      
-      const data = response.data as any;
-      
-      if (data.code !== 0) {
-        throw new Error(`iTop API error: ${data.message}`);
-      }
+        console.log("iTop API create ticket response status:", response.status);
+        console.log("iTop API create ticket response:", JSON.stringify(response.data, null, 2));
+        
+        const data = response.data as any;
+        
+        if (data.code !== 0) {
+          throw new Error(`iTop API error: ${data.message}`);
+        }
 
-      // Based on the actual response structure, extract the ref directly
-      // The response structure is different from what we expected
-      if (data.objects) {
-        const objectKey = Object.keys(data.objects)[0]; // Get the first key (e.g., "UserRequest::7")
-        if (objectKey && data.objects[objectKey] && data.objects[objectKey].fields && data.objects[objectKey].fields.ref) {
-          const ticketRef = data.objects[objectKey].fields.ref;
-          console.log("Ticket reference extracted directly:", ticketRef);
-          return ticketRef;
+        // Based on the actual response structure, extract the ref directly
+        // The response structure is different from what we expected
+        if (data.objects) {
+          const objectKey = Object.keys(data.objects)[0]; // Get the first key (e.g., "UserRequest::7")
+          if (objectKey && data.objects[objectKey] && data.objects[objectKey].fields && data.objects[objectKey].fields.ref) {
+            const ticketRef = data.objects[objectKey].fields.ref;
+            console.log("Ticket reference extracted directly:", ticketRef);
+            return ticketRef;
+          }
         }
-      }
-      
-      console.log("Could not extract ref directly, trying alternative approach");
-      
-      // If we couldn't extract the ref directly, try to get the key and make another request
-      let objectKey = "";
-      if (data.objects) {
-        objectKey = Object.keys(data.objects)[0];
-        if (!objectKey) {
-          throw new Error("No object key found in response");
+        
+        console.log("Could not extract ref directly, trying alternative approach");
+        
+        // If we couldn't extract the ref directly, try to get the key and make another request
+        let objectKey = "";
+        if (data.objects) {
+          objectKey = Object.keys(data.objects)[0];
+          if (!objectKey) {
+            throw new Error("No object key found in response");
+          }
+        } else {
+          throw new Error("No objects found in response");
         }
-      } else {
-        throw new Error("No objects found in response");
-      }
-      
-      // Extract just the numeric part from the key (e.g., "7" from "UserRequest::7")
-      const keyParts = objectKey.split("::");
-      const numericKey = keyParts.length > 1 ? keyParts[1] : objectKey;
-      
-      // Make another request to get the ticket reference (ref field)
-      const refFormData = new FormData();
-      refFormData.append('version', ITOP_API_VERSION || "1.3"); // Use default if not found
-      refFormData.append('auth_user', ITOP_AUTH.user || "admin"); // Use default if not found
-      refFormData.append('auth_pwd', ITOP_AUTH.password || "Passw0rd"); // Use default if not found
-      refFormData.append('json_data', JSON.stringify({
-        operation: "core/get",
-        class: "UserRequest",
-        key: numericKey,
-        output_fields: "ref"
-      }));
-      
-      const refResponse = await axios.post(ITOP_API_URL || "http://192.168.0.250:8111/webservices/rest.php", refFormData, {
-        headers: {
-          ...refFormData.getHeaders()
+        
+        // Extract just the numeric part from the key (e.g., "7" from "UserRequest::7")
+        const keyParts = objectKey.split("::");
+        const numericKey = keyParts.length > 1 ? keyParts[1] : objectKey;
+        
+        // Make another request to get the ticket reference (ref field)
+        const refFormData = new FormData();
+        refFormData.append('version', ITOP_API_VERSION);
+        refFormData.append('auth_user', ITOP_AUTH.user);
+        refFormData.append('auth_pwd', ITOP_AUTH.password);
+        refFormData.append('json_data', JSON.stringify({
+          operation: "core/get",
+          class: "UserRequest",
+          key: numericKey,
+          output_fields: "ref"
+        }));
+        
+        const refResponse = await axiosInstance.post(ITOP_API_URL, refFormData, {
+          headers: {
+            ...refFormData.getHeaders()
+          }
+        });
+        
+        console.log("iTop API get ticket ref response:", JSON.stringify(refResponse.data, null, 2));
+        
+        const refData = refResponse.data as any;
+        if (refData.code !== 0) {
+          throw new Error(`Failed to get ticket reference: ${refData.message}`);
         }
-      });
-      
-      console.log("iTop API get ticket ref response:", JSON.stringify(refResponse.data, null, 2));
-      
-      const refData = refResponse.data as any;
-      if (refData.code !== 0) {
-        throw new Error(`Failed to get ticket reference: ${refData.message}`);
-      }
-      
-      // Try to extract the ref from the second response
-      if (refData.objects) {
-        const refObjectKey = Object.keys(refData.objects)[0];
-        if (refObjectKey && refData.objects[refObjectKey] && refData.objects[refObjectKey].fields && refData.objects[refObjectKey].fields.ref) {
-          const ticketRef = refData.objects[refObjectKey].fields.ref;
-          console.log("Ticket reference from second request:", ticketRef);
-          return ticketRef;
+        
+        // Try to extract the ref from the second response
+        if (refData.objects) {
+          const refObjectKey = Object.keys(refData.objects)[0];
+          if (refObjectKey && refData.objects[refObjectKey] && refData.objects[refObjectKey].fields && refData.objects[refObjectKey].fields.ref) {
+            const ticketRef = refData.objects[refObjectKey].fields.ref;
+            console.log("Ticket reference from second request:", ticketRef);
+            return ticketRef;
+          }
         }
+        
+        throw new Error("Could not extract ticket reference from API responses");
+      } catch (error: any) {
+        console.error("Error in iTop API request for creating ticket:", error.message);
+        if (error.response) {
+          console.error("Response status:", error.response.status);
+          console.error("Response data:", error.response.data);
+        }
+        throw error;
       }
-      
-      throw new Error("Could not extract ticket reference from API responses");
     } catch (error) {
       console.error("Error creating ticket in iTop:", error);
       throw error;
