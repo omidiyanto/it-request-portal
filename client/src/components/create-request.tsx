@@ -15,6 +15,7 @@ import type { Department, User } from "@shared/schema";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import PrintTicketModal from "@/components/print-ticket-modal";
 
 // Import command components for searchable select
 import {
@@ -66,6 +67,17 @@ export default function CreateRequest() {
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [open, setOpen] = useState(false);
+  
+  // State for print ticket modal
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [printTicketData, setPrintTicketData] = useState<{
+    ticketId: string;
+    userName: string;
+    departmentName: string;
+    extension: string;
+    createdAt: string;
+    title: string;
+  } | null>(null);
 
   const stepOneForm = useForm<StepOneData>({
     resolver: zodResolver(stepOneSchema),
@@ -168,27 +180,41 @@ export default function CreateRequest() {
         };
 
         const response = await apiRequest("POST", "/api/tickets", requestData);
-        return response.json();
+        const responseData = await response.json();
+        console.log("Ticket created successfully:", responseData);
+        return {
+          ...responseData,
+          userName: data.userName,
+          departmentName: data.departmentName,
+          title: data.issueTitle // Use the original issue title without department
+        };
       } catch (error) {
         console.error("Error creating ticket:", error);
         throw error;
       }
     },
     onSuccess: (ticket) => {
+      console.log("Mutation success, ticket data:", ticket);
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       toast({
         title: "Ticket Created Successfully!",
         description: `Your support request has been submitted with ticket ID: ${ticket.ticketId}`,
       });
       
-      // Reset forms and step
-      stepOneForm.reset();
-      stepTwoForm.reset();
-      setStepOneData(null);
-      setSelectedUserName("");
-      setSelectedDepartmentName("");
-      setSelectedDepartmentId("");
-      setStep(1);
+      // Set print ticket data and show modal
+      setPrintTicketData({
+        ticketId: ticket.ticketId,
+        userName: ticket.userName,
+        departmentName: ticket.departmentName,
+        extension: ticket.extension || "-",
+        createdAt: ticket.createdAt,
+        title: ticket.title,
+      });
+      setShowPrintModal(true);
+      console.log("Setting print modal to show with data:", ticket);
+      
+      // Don't reset forms or change step until after printing
+      // This will be handled in the onClose of the print modal
     },
     onError: (error) => {
       console.error("Mutation error:", error);
@@ -234,6 +260,20 @@ export default function CreateRequest() {
   };
 
   const handleBack = () => {
+    setStep(1);
+  };
+
+  // Handle closing the print modal and resetting form
+  const handlePrintModalClose = () => {
+    setShowPrintModal(false);
+    
+    // Reset forms and step after closing the print modal
+    stepOneForm.reset();
+    stepTwoForm.reset();
+    setStepOneData(null);
+    setSelectedUserName("");
+    setSelectedDepartmentName("");
+    setSelectedDepartmentId("");
     setStep(1);
   };
 
@@ -364,187 +404,198 @@ export default function CreateRequest() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <Card className="bg-card/80 backdrop-blur-sm border-border shadow-2xl">
-        <CardContent className="px-6 py-8 sm:px-8">
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/20 rounded-full mb-4">
-              <Ticket className="text-primary text-2xl" />
+    <>
+      <div className="max-w-2xl mx-auto">
+        <Card className="bg-card/80 backdrop-blur-sm border-border shadow-2xl">
+          <CardContent className="px-6 py-8 sm:px-8">
+            <div className="text-center mb-8">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/20 rounded-full mb-4">
+                <Ticket className="text-primary text-2xl" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-2">Ticket Details</h2>
+              <p className="text-muted-foreground">Fill out the form below to submit your IT support request</p>
             </div>
-            <h2 className="text-2xl font-bold text-foreground mb-2">Ticket Details</h2>
-            <p className="text-muted-foreground">Fill out the form below to submit your IT support request</p>
-          </div>
 
-          {/* Display selected user and department */}
-          <div className="mb-6 p-4 bg-muted/50 rounded-lg border border-border">
-            <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <p className="text-xs font-medium text-muted-foreground mb-1">User</p>
-                <p className="text-sm font-medium">{selectedUserName}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Department</p>
-                <p className="text-sm font-medium">{selectedDepartmentName}</p>
-              </div>
-              <div className="text-center">
-                <p className="text-xs font-medium text-muted-foreground mb-1">Extension</p>
-                <p className="text-sm font-medium">{stepOneData?.extension || '-'}</p>
+            {/* Display selected user and department */}
+            <div className="mb-6 p-4 bg-muted/50 rounded-lg border border-border">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">User</p>
+                  <p className="text-sm font-medium">{selectedUserName}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Department</p>
+                  <p className="text-sm font-medium">{selectedDepartmentName}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Extension</p>
+                  <p className="text-sm font-medium">{stepOneData?.extension || '-'}</p>
+                </div>
               </div>
             </div>
-          </div>
 
-          <Form {...stepTwoForm}>
-            <form onSubmit={stepTwoForm.handleSubmit(handleStepTwoSubmit)} className="space-y-6">
-              {/* 1. Device Type (new field) */}
-              <FormField
-                control={stepTwoForm.control}
-                name="deviceType"
-                render={({ field }) => (
-                  <FormItem className="space-y-3">
-                    <FormLabel className="text-muted-foreground">
-                      Device Type <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="flex flex-wrap gap-4"
-                      >
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="PC" />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">PC</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="Laptop" />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">Laptop</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="Printer" />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">Printer</FormLabel>
-                        </FormItem>
-                        <FormItem className="flex items-center space-x-2 space-y-0">
-                          <FormControl>
-                            <RadioGroupItem value="Others" />
-                          </FormControl>
-                          <FormLabel className="font-normal cursor-pointer">Others</FormLabel>
-                        </FormItem>
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* 2. Issue Title (new field) */}
-              <FormField
-                control={stepTwoForm.control}
-                name="issueTitle"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-muted-foreground">
-                      Issue Title <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        className="bg-muted border-border"
-                        placeholder="Brief description of the issue"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* 3. Issue Description */}
-              <FormField
-                control={stepTwoForm.control}
-                name="issueDescription"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-muted-foreground">
-                      Issue Detail <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        {...field} 
-                        className="bg-muted border-border resize-none" 
-                        placeholder="Please describe the issue in detail"
-                        rows={4}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              {/* 4. Rack Location (changed to radio buttons) */}
-              <FormField
-                control={stepTwoForm.control}
-                name="rackLocation"
-                render={({ field }) => (
-                  <FormItem className="space-y-3">
-                    <FormLabel className="text-muted-foreground">
-                      Rack Location <span className="text-destructive">*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <RadioGroup
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                        className="grid grid-cols-3 gap-2"
-                      >
-                        {RACK_LOCATIONS.map((location) => (
-                          <FormItem key={location.id} className="flex items-center space-x-2 space-y-0 rounded-md border p-2">
+            <Form {...stepTwoForm}>
+              <form onSubmit={stepTwoForm.handleSubmit(handleStepTwoSubmit)} className="space-y-6">
+                {/* 1. Device Type (new field) */}
+                <FormField
+                  control={stepTwoForm.control}
+                  name="deviceType"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="text-muted-foreground">
+                        Device Type <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="flex flex-wrap gap-4"
+                        >
+                          <FormItem className="flex items-center space-x-2 space-y-0">
                             <FormControl>
-                              <RadioGroupItem value={location.id} />
+                              <RadioGroupItem value="PC" />
                             </FormControl>
-                            <FormLabel className="font-normal cursor-pointer">{location.label}</FormLabel>
+                            <FormLabel className="font-normal cursor-pointer">PC</FormLabel>
                           </FormItem>
-                        ))}
-                      </RadioGroup>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="flex space-x-3">
-                <Button 
-                  type="button"
-                  variant="outline"
-                  onClick={handleBack}
-                  className="flex-1 bg-muted text-muted-foreground hover:bg-muted/80 transition-all duration-200"
-                >
-                  Back
-                </Button>
-                <Button 
-                  type="submit" 
-                  disabled={createTicketMutation.isPending}
-                  className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
-                >
-                  {createTicketMutation.isPending ? (
-                    <>
-                      <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                      Creating...
-                    </>
-                  ) : (
-                    <>
-                      <Send className="w-4 h-4 mr-2" />
-                      Submit Request
-                    </>
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="Laptop" />
+                            </FormControl>
+                            <FormLabel className="font-normal cursor-pointer">Laptop</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="Printer" />
+                            </FormControl>
+                            <FormLabel className="font-normal cursor-pointer">Printer</FormLabel>
+                          </FormItem>
+                          <FormItem className="flex items-center space-x-2 space-y-0">
+                            <FormControl>
+                              <RadioGroupItem value="Others" />
+                            </FormControl>
+                            <FormLabel className="font-normal cursor-pointer">Others</FormLabel>
+                          </FormItem>
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
                   )}
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-    </div>
+                />
+
+                {/* 2. Issue Title (new field) */}
+                <FormField
+                  control={stepTwoForm.control}
+                  name="issueTitle"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-muted-foreground">
+                        Issue Title <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="bg-muted border-border"
+                          placeholder="Brief description of the issue"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* 3. Issue Description */}
+                <FormField
+                  control={stepTwoForm.control}
+                  name="issueDescription"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-muted-foreground">
+                        Issue Detail <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          {...field} 
+                          className="bg-muted border-border resize-none" 
+                          placeholder="Please describe the issue in detail"
+                          rows={4}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {/* 4. Rack Location (changed to radio buttons) */}
+                <FormField
+                  control={stepTwoForm.control}
+                  name="rackLocation"
+                  render={({ field }) => (
+                    <FormItem className="space-y-3">
+                      <FormLabel className="text-muted-foreground">
+                        Rack Location <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <RadioGroup
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                          className="grid grid-cols-3 gap-2"
+                        >
+                          {RACK_LOCATIONS.map((location) => (
+                            <FormItem key={location.id} className="flex items-center space-x-2 space-y-0 rounded-md border p-2">
+                              <FormControl>
+                                <RadioGroupItem value={location.id} />
+                              </FormControl>
+                              <FormLabel className="font-normal cursor-pointer">{location.label}</FormLabel>
+                            </FormItem>
+                          ))}
+                        </RadioGroup>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="flex space-x-3">
+                  <Button 
+                    type="button"
+                    variant="outline"
+                    onClick={handleBack}
+                    className="flex-1 bg-muted text-muted-foreground hover:bg-muted/80 transition-all duration-200"
+                  >
+                    Back
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={createTicketMutation.isPending}
+                    className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
+                  >
+                    {createTicketMutation.isPending ? (
+                      <>
+                        <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-4 h-4 mr-2" />
+                        Submit Request
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Print Ticket Modal */}
+      {printTicketData && (
+        <PrintTicketModal
+          isOpen={showPrintModal}
+          onClose={handlePrintModalClose}
+          ticketData={printTicketData}
+        />
+      )}
+    </>
   );
 }

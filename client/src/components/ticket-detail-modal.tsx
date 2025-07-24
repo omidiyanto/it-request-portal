@@ -3,9 +3,10 @@ import { useMutation } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Clock, CalendarClock, User, Briefcase, Phone, MapPin, Info } from "lucide-react";
+import { CheckCircle, Clock, CalendarClock, User, Briefcase, Phone, MapPin, Info, Printer } from "lucide-react";
 import { queryClient } from "@/lib/queryClient";
 import CompletionModal from "@/components/completion-modal";
+import PrintTicketModal from "@/components/print-ticket-modal";
 import type { TicketWithDetails } from "@shared/schema";
 
 interface TicketDetailModalProps {
@@ -16,6 +17,7 @@ interface TicketDetailModalProps {
 
 export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDetailModalProps) {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
   const [internalOpen, setInternalOpen] = useState(isOpen);
   const [extractedData, setExtractedData] = useState({
     deviceType: "",
@@ -268,6 +270,18 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
               </Button>
             </div>
           )}
+          
+          {/* Print Ticket Button - available for all tickets */}
+          <div className="pt-4">
+            <Button
+              onClick={() => setShowPrintModal(true)}
+              variant="outline"
+              className="w-full border-primary text-primary hover:bg-primary/10 font-medium py-3 px-6 rounded-lg transition-all duration-200"
+            >
+              <Printer className="w-4 h-4 mr-2" />
+              Print Ticket
+            </Button>
+          </div>
         </div>
       </DialogContent>
       
@@ -280,6 +294,20 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
           onSuccess={handleCompleteTicket}
         />
       )}
+      
+      {/* Print Ticket Modal */}
+      <PrintTicketModal
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        ticketData={{
+          ticketId: ticket.ticketId,
+          userName: ticket.user.name,
+          departmentName: ticket.department.name,
+          extension: ticket.extension || "-",
+          createdAt: typeof ticket.createdAt === 'string' ? ticket.createdAt : new Date(ticket.createdAt).toISOString(),
+          title: ticket.title
+        }}
+      />
     </Dialog>
   );
 }
