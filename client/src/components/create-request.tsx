@@ -1,26 +1,55 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Ticket, Send } from "lucide-react";
+import { Ticket, Send, Search, Check, ChevronDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Department, User } from "@shared/schema";
+import { cn } from "@/lib/utils";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+
+// Import command components for searchable select
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+
+// Rack locations data - can be easily modified
+const RACK_LOCATIONS = [
+  { id: "a1-r01", label: "A1-R01" },
+  { id: "a1-r02", label: "A1-R02" },
+  { id: "a1-r03", label: "A1-R03" },
+  { id: "b1-r01", label: "B1-R01" },
+  { id: "b1-r02", label: "B1-R02" },
+  { id: "c1-r01", label: "C1-R01" },
+  { id: "c1-r02", label: "C1-R02" },
+];
 
 const stepOneSchema = z.object({
-  departmentId: z.string().min(1, "Department is required"),
   userId: z.string().min(1, "User is required"),
+  extension: z.string().optional(), // Extension is optional
 });
 
 const stepTwoSchema = z.object({
-  extension: z.string().min(1, "Extension is required"),
+  deviceType: z.enum(["PC", "Laptop", "Printer", "Others"], {
+    required_error: "Device type is required",
+  }),
+  issueTitle: z.string().min(5, "Issue title must be at least 5 characters"),
   rackLocation: z.string().min(1, "Rack location is required"),
   issueDescription: z.string().min(10, "Issue description must be at least 10 characters"),
 });
@@ -34,80 +63,110 @@ export default function CreateRequest() {
   const { toast } = useToast();
   const [selectedUserName, setSelectedUserName] = useState<string>("");
   const [selectedDepartmentName, setSelectedDepartmentName] = useState<string>("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [open, setOpen] = useState(false);
 
   const stepOneForm = useForm<StepOneData>({
     resolver: zodResolver(stepOneSchema),
     defaultValues: {
-      departmentId: "",
       userId: "",
+      extension: "",
     },
   });
 
   const stepTwoForm = useForm<StepTwoData>({
     resolver: zodResolver(stepTwoSchema),
     defaultValues: {
-      extension: "",
+      deviceType: undefined,
+      issueTitle: "",
       rackLocation: "",
       issueDescription: "",
     },
   });
 
-  const { data: departments, isLoading: departmentsLoading } = useQuery<Department[]>({
+  // Set up queries with auto-refresh every 30 seconds
+  const { data: departments } = useQuery<Department[]>({
     queryKey: ["/api/departments"],
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
-  const selectedDepartmentId = stepOneForm.watch("departmentId");
-  
-  // Reset userId when department changes
-  useEffect(() => {
-    if (selectedDepartmentId) {
-      stepOneForm.setValue("userId", "");
-      
-      // Store department name for title template
-      const selectedDept = departments?.find(dept => dept.id.toString() === selectedDepartmentId);
-      if (selectedDept) {
-        setSelectedDepartmentName(selectedDept.name);
-      }
-    }
-  }, [selectedDepartmentId, stepOneForm, departments]);
-  
-  const { data: users, isLoading: usersLoading, error: usersError } = useQuery<User[]>({
-    queryKey: ["/api/users", { departmentId: selectedDepartmentId }],
-    enabled: !!selectedDepartmentId,
+  const { data: allUsers, isLoading: usersLoading } = useQuery<User[]>({
+    queryKey: ["/api/users"],
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
   
-  // Store selected user name for title template
+  // Filter users based on search term and sort alphabetically
+  const filteredUsers = useMemo(() => {
+    if (!allUsers) return [];
+    
+    let result = [...allUsers];
+    
+    // Sort alphabetically by name
+    result.sort((a, b) => a.name.localeCompare(b.name));
+    
+    // Filter by search term if provided
+    if (searchTerm) {
+      result = result.filter(user => 
+        user.name.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    return result;
+  }, [allUsers, searchTerm]);
+  
+  // Update department when user is selected
   const selectedUserId = stepOneForm.watch("userId");
   useEffect(() => {
-    if (selectedUserId && users) {
-      const selectedUser = users.find(user => user.id.toString() === selectedUserId);
+    if (selectedUserId && allUsers) {
+      const selectedUser = allUsers.find(user => user.id.toString() === selectedUserId);
       if (selectedUser) {
         setSelectedUserName(selectedUser.name);
+        
+        // Set the department based on the selected user
+        const userDepartmentId = selectedUser.departmentId.toString();
+        setSelectedDepartmentId(userDepartmentId);
+        
+        // Find department name
+        const selectedDept = departments?.find(dept => dept.id.toString() === userDepartmentId);
+        if (selectedDept) {
+          setSelectedDepartmentName(selectedDept.name);
+        }
       }
     }
-  }, [selectedUserId, users]);
+  }, [selectedUserId, allUsers, departments]);
 
   const createTicketMutation = useMutation({
-    mutationFn: async (data: StepTwoData & { departmentId: number; userId: number; userName: string; departmentName: string }) => {
+    mutationFn: async (data: { 
+      departmentId: number; 
+      userId: number; 
+      userName: string; 
+      departmentName: string;
+      extension: string;
+      deviceType: string;
+      issueTitle: string;
+      rackLocation: string;
+      issueDescription: string;
+    }) => {
       try {
         // Format description according to the required structure
-        const formattedDescription = `<p><strong>EXTENSION</strong>: ${data.extension}</p>
+        const formattedDescription = `<p><strong>DEVICE TYPE</strong>: ${data.deviceType}</p>
+<p><strong>EXTENSION</strong>: ${data.extension || '-'}</p>
 <p><strong>RACK LOCATION</strong>: ${data.rackLocation}</p>
 <p><strong>ISSUE DESCRIPTION</strong>: ${data.issueDescription}</p>`;
 
-        // Create title template
-        const titleTemplate = `[REQUEST] from ${data.userName} (${data.departmentName})`;
+        // Create title template with new format
+        const titleTemplate = `${data.issueTitle} (${data.departmentName})`;
 
         const requestData = {
           departmentId: data.departmentId,
           userId: data.userId,
-          extension: data.extension,
+          extension: data.extension || '-',
           rackLocation: data.rackLocation,
           issueDescription: formattedDescription,
           title: titleTemplate
         };
 
-        console.log("Sending ticket data:", requestData);
         const response = await apiRequest("POST", "/api/tickets", requestData);
         return response.json();
       } catch (error) {
@@ -128,6 +187,7 @@ export default function CreateRequest() {
       setStepOneData(null);
       setSelectedUserName("");
       setSelectedDepartmentName("");
+      setSelectedDepartmentId("");
       setStep(1);
     },
     onError: (error) => {
@@ -146,8 +206,8 @@ export default function CreateRequest() {
   };
 
   const handleStepTwoSubmit = (data: StepTwoData) => {
-    if (!stepOneData || !selectedUserName || !selectedDepartmentName) {
-      console.error("Missing required data:", { stepOneData, selectedUserName, selectedDepartmentName });
+    if (!stepOneData || !selectedUserName || !selectedDepartmentName || !selectedDepartmentId) {
+      console.error("Missing required data:", { stepOneData, selectedUserName, selectedDepartmentName, selectedDepartmentId });
       toast({
         title: "Error",
         description: "Missing required information. Please go back and try again.",
@@ -158,11 +218,15 @@ export default function CreateRequest() {
     
     try {
       createTicketMutation.mutate({
-        ...data,
-        departmentId: parseInt(stepOneData.departmentId),
+        departmentId: parseInt(selectedDepartmentId),
         userId: parseInt(stepOneData.userId),
         userName: selectedUserName,
-        departmentName: selectedDepartmentName
+        departmentName: selectedDepartmentName,
+        extension: stepOneData.extension || '-',
+        deviceType: data.deviceType,
+        issueTitle: data.issueTitle,
+        rackLocation: data.rackLocation,
+        issueDescription: data.issueDescription
       });
     } catch (error) {
       console.error("Error submitting form:", error);
@@ -172,6 +236,12 @@ export default function CreateRequest() {
   const handleBack = () => {
     setStep(1);
   };
+
+  // Force refresh data when component mounts or when step changes
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: ["/api/departments"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+  }, [step]);
 
   if (step === 1) {
     return (
@@ -183,76 +253,95 @@ export default function CreateRequest() {
                 <Ticket className="text-primary text-2xl" />
               </div>
               <h2 className="text-2xl font-bold text-foreground mb-2">Create New Request</h2>
-              <p className="text-muted-foreground">Select department and user to get started</p>
+              <p className="text-muted-foreground">Select a user to get started</p>
             </div>
 
             <Form {...stepOneForm}>
               <form onSubmit={stepOneForm.handleSubmit(handleStepOneSubmit)} className="space-y-6">
                 <FormField
                   control={stepOneForm.control}
-                  name="departmentId"
+                  name="userId"
                   render={({ field }) => (
-                    <FormItem>
+                    <FormItem className="flex flex-col">
                       <FormLabel className="text-muted-foreground">
-                        Department <span className="text-destructive">*</span>
+                        User <span className="text-destructive">*</span>
                       </FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-muted border-border">
-                            <SelectValue placeholder="Select Department" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {departmentsLoading ? (
-                            <SelectItem value="loading" disabled>Loading departments...</SelectItem>
-                          ) : departments && departments.length > 0 ? (
-                            departments.map((dept: Department) => (
-                              <SelectItem key={dept.id} value={dept.id.toString()}>
-                                {dept.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="none" disabled>No departments found</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      
+                      <Popover open={open} onOpenChange={setOpen}>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={open}
+                            className="w-full justify-between bg-muted border-border"
+                          >
+                            {field.value && allUsers
+                              ? allUsers.find(user => user.id.toString() === field.value)?.name
+                              : "Search and select user..."}
+                            <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                          <Command>
+                            <div className="flex items-center border-b px-3">
+                              <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
+                              <input
+                                className="flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                                placeholder="Search users..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                              />
+                            </div>
+                            <CommandEmpty>No user found.</CommandEmpty>
+                            <CommandGroup className="max-h-64 overflow-y-auto">
+                              {usersLoading ? (
+                                <CommandItem disabled>Loading users...</CommandItem>
+                              ) : filteredUsers.length > 0 ? (
+                                filteredUsers.map((user) => (
+                                  <CommandItem
+                                    key={user.id}
+                                    value={user.id.toString()}
+                                    onSelect={(currentValue) => {
+                                      field.onChange(currentValue);
+                                      setOpen(false);
+                                    }}
+                                    className="flex items-center justify-between"
+                                  >
+                                    <span>{user.name}</span>
+                                    {field.value === user.id.toString() && (
+                                      <Check className="h-4 w-4 text-primary" />
+                                    )}
+                                  </CommandItem>
+                                ))
+                              ) : (
+                                <CommandItem disabled>No users found</CommandItem>
+                              )}
+                            </CommandGroup>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+
                       <FormMessage />
                     </FormItem>
                   )}
                 />
 
+                {/* Extension field - always visible */}
                 <FormField
                   control={stepOneForm.control}
-                  name="userId"
+                  name="extension"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-muted-foreground">
-                        User <span className="text-destructive">*</span>
+                        Extension {/* Remove required indicator */}
                       </FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value} 
-                        disabled={!selectedDepartmentId || usersLoading}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="bg-muted border-border">
-                            <SelectValue placeholder="Select User" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {usersLoading ? (
-                            <SelectItem value="loading" disabled>Loading users...</SelectItem>
-                          ) : users && users.length > 0 ? (
-                            users.map((user: User) => (
-                              <SelectItem key={user.id} value={user.id.toString()}>
-                                {user.name}
-                              </SelectItem>
-                            ))
-                          ) : (
-                            <SelectItem value="none" disabled>No users found for this department</SelectItem>
-                          )}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          className="bg-muted border-border"
+                          placeholder="e.g., 1234 (optional)"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -261,7 +350,7 @@ export default function CreateRequest() {
                 <Button 
                   type="submit" 
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
-                  disabled={!selectedDepartmentId || !stepOneForm.watch("userId")}
+                  disabled={!selectedUserId}
                 >
                   <Send className="w-4 h-4 mr-2" />
                   Continue
@@ -286,59 +375,139 @@ export default function CreateRequest() {
             <p className="text-muted-foreground">Fill out the form below to submit your IT support request</p>
           </div>
 
+          {/* Display selected user and department */}
+          <div className="mb-6 p-4 bg-muted/50 rounded-lg border border-border">
+            <div className="grid grid-cols-3 gap-4">
+              <div className="text-center">
+                <p className="text-xs font-medium text-muted-foreground mb-1">User</p>
+                <p className="text-sm font-medium">{selectedUserName}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Department</p>
+                <p className="text-sm font-medium">{selectedDepartmentName}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-medium text-muted-foreground mb-1">Extension</p>
+                <p className="text-sm font-medium">{stepOneData?.extension || '-'}</p>
+              </div>
+            </div>
+          </div>
+
           <Form {...stepTwoForm}>
             <form onSubmit={stepTwoForm.handleSubmit(handleStepTwoSubmit)} className="space-y-6">
-              <div className="space-y-2">
-                <label htmlFor="extension" className="text-sm font-medium text-muted-foreground">
-                  Extension <span className="text-destructive">*</span>
-                </label>
-                <input
-                  id="extension"
-                  type="text"
-                  className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="e.g., 1234"
-                  {...stepTwoForm.register("extension")}
-                />
-                {stepTwoForm.formState.errors.extension && (
-                  <p className="text-sm font-medium text-destructive">
-                    {stepTwoForm.formState.errors.extension.message}
-                  </p>
+              {/* 1. Device Type (new field) */}
+              <FormField
+                control={stepTwoForm.control}
+                name="deviceType"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-muted-foreground">
+                      Device Type <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="flex flex-wrap gap-4"
+                      >
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="PC" />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer">PC</FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="Laptop" />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer">Laptop</FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="Printer" />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer">Printer</FormLabel>
+                        </FormItem>
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <RadioGroupItem value="Others" />
+                          </FormControl>
+                          <FormLabel className="font-normal cursor-pointer">Others</FormLabel>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
+              />
 
-              <div className="space-y-2">
-                <label htmlFor="rackLocation" className="text-sm font-medium text-muted-foreground">
-                  Rack Location <span className="text-destructive">*</span>
-                </label>
-                <input
-                  id="rackLocation"
-                  type="text"
-                  className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  placeholder="e.g., A1-R03-U12"
-                  {...stepTwoForm.register("rackLocation")}
-                />
-                {stepTwoForm.formState.errors.rackLocation && (
-                  <p className="text-sm font-medium text-destructive">
-                    {stepTwoForm.formState.errors.rackLocation.message}
-                  </p>
+              {/* 2. Issue Title (new field) */}
+              <FormField
+                control={stepTwoForm.control}
+                name="issueTitle"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-muted-foreground">
+                      Issue Title <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <Input
+                        {...field}
+                        className="bg-muted border-border"
+                        placeholder="Brief description of the issue"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
+              />
 
+              {/* 3. Issue Description */}
               <FormField
                 control={stepTwoForm.control}
                 name="issueDescription"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-muted-foreground">
-                      Issue Description <span className="text-destructive">*</span>
+                      Issue Detail <span className="text-destructive">*</span>
                     </FormLabel>
                     <FormControl>
                       <Textarea 
                         {...field} 
                         className="bg-muted border-border resize-none" 
-                        placeholder="Please describe the issue in detail..."
+                        placeholder="Please describe the issue in detail"
                         rows={4}
                       />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* 4. Rack Location (changed to radio buttons) */}
+              <FormField
+                control={stepTwoForm.control}
+                name="rackLocation"
+                render={({ field }) => (
+                  <FormItem className="space-y-3">
+                    <FormLabel className="text-muted-foreground">
+                      Rack Location <span className="text-destructive">*</span>
+                    </FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        className="grid grid-cols-3 gap-2"
+                      >
+                        {RACK_LOCATIONS.map((location) => (
+                          <FormItem key={location.id} className="flex items-center space-x-2 space-y-0 rounded-md border p-2">
+                            <FormControl>
+                              <RadioGroupItem value={location.id} />
+                            </FormControl>
+                            <FormLabel className="font-normal cursor-pointer">{location.label}</FormLabel>
+                          </FormItem>
+                        ))}
+                      </RadioGroup>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
