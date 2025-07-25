@@ -83,7 +83,42 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
       return;
     }
     
-    // Write content to iframe
+    // Direct HTML for thermal printer - streamlined for 58mm width
+    const ticketContent = `
+      <div style="width: 48mm; font-family: Arial, sans-serif; background-color: white; padding: 0; margin: 0; font-weight: bold;">
+        <div style="font-size: 12px; font-weight: bold; text-align: center; border-bottom: 1px solid black; padding-bottom: 1mm; margin-bottom: 1mm;">
+          Ticket: ${ticketData.ticketId}
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+          <tr>
+            <td style="font-weight: bold; width: 30%; padding: 0.5mm 0; vertical-align: top;">Owner:</td>
+            <td style="width: 70%; padding: 0.5mm 0; font-weight: bold; vertical-align: top;">${ticketData.userName}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold; width: 30%; padding: 0.5mm 0; vertical-align: top;">Dept:</td>
+            <td style="width: 70%; padding: 0.5mm 0; font-weight: bold; vertical-align: top;">${ticketData.departmentName}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold; width: 30%; padding: 0.5mm 0; vertical-align: top;">Ext:</td>
+            <td style="width: 70%; padding: 0.5mm 0; font-weight: bold; vertical-align: top;">${ticketData.extension}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold; width: 30%; padding: 0.5mm 0; vertical-align: top;">Rack:</td>
+            <td style="width: 70%; padding: 0.5mm 0; font-weight: bold; vertical-align: top;">${ticketData.rackLocation || "-"}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold; width: 30%; padding: 0.5mm 0; vertical-align: top;">Date In:</td>
+            <td style="width: 70%; padding: 0.5mm 0; font-weight: bold; vertical-align: top;">${formatDate(ticketData.createdAt)}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold; width: 30%; padding: 0.5mm 0; vertical-align: top;">Issue:</td>
+            <td style="width: 70%; padding: 0.5mm 0; font-weight: bold; vertical-align: top;">${ticketData.title}</td>
+          </tr>
+        </table>
+      </div>
+    `;
+    
+    // Write content to iframe for thermal printer
     const doc = iframeRef.current.contentWindow.document;
     doc.open();
     doc.write(`
@@ -92,73 +127,86 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
         <head>
           <title>Print Ticket</title>
           <style>
+            /* Thermal printer specific settings for iWare MP58II */
             @page {
-              size: 3.5in 2in;
-              margin: 0;
+              /* Use default Gprinter size, but force no margins */
+              size: 58mm auto !important;
+              margin: 0 !important;
             }
-            body {
-              margin: 0;
-              padding: 0;
-              width: 3.5in;
-              height: 2in;
-              overflow: hidden;
+            
+            html, body {
+              width: 48mm !important; /* Printing area width */
+              margin: 0 !important;
+              padding: 0 !important;
+              -webkit-print-color-adjust: exact !important;
+              color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              font-family: Arial, sans-serif !important;
+              font-weight: bold !important;
+              font-size: 11px !important;
             }
-            .print-card {
-              width: 3.5in;
-              height: 2in;
-              border: 1px solid black;
-              padding: 0.1in;
-              box-sizing: border-box;
-              background-color: white;
-              color: black;
-              font-family: Arial, sans-serif;
+            
+            * {
+              font-family: Arial, sans-serif !important;
+              font-weight: bold !important;
             }
+            
+            table {
+              font-size: 11px !important;
+            }
+            
+            td {
+              vertical-align: top !important;
+            }
+            
             .ticket-header {
-              font-size: 14px;
-              font-weight: bold;
-              text-align: center;
-              margin-bottom: 5px;
-              border-bottom: 1px solid black;
-              padding-bottom: 5px;
-            }
-            .ticket-table {
-              width: 100%;
-              border-collapse: collapse;
-              font-size: 12px;
-            }
-            .ticket-table td {
-              padding: 2px 4px;
-            }
-            .label {
-              font-weight: bold;
-              width: 25%;
-            }
-            .value {
-              width: 75%;
+              font-size: 12px !important;
             }
           </style>
         </head>
         <body>
-          ${content.innerHTML}
+          ${ticketContent}
         </body>
       </html>
     `);
     doc.close();
     
-    // Print the iframe content
+    // Use a flag to prevent multiple prints
+    let hasPrinted = false;
+    
     setTimeout(() => {
-      if (iframeRef.current && iframeRef.current.contentWindow) {
-        iframeRef.current.contentWindow.focus();
-        iframeRef.current.contentWindow.print();
+      if (iframeRef.current && iframeRef.current.contentWindow && !hasPrinted) {
+        hasPrinted = true;
         
-        // Reset print state
+        try {
+          // Final attempt to force correct paper handling for thermal printer
+          const style = doc.createElement('style');
+          style.textContent = `
+            @media print {
+              /* For iWare MP58II thermal printer */
+              @page { 
+                size: 58mm auto !important; 
+                margin: 0 !important; 
+              }
+            }
+          `;
+          doc.head.appendChild(style);
+          
+          // Print once
+          iframeRef.current.contentWindow.focus();
+          iframeRef.current.contentWindow.print();
+        } catch (e) {
+          console.error("Print error:", e);
+        }
+        
+        // Reset state
         setTimeout(() => {
           setIsPrinting(false);
         }, 500);
       } else {
         setIsPrinting(false);
       }
-    }, 500);
+    }, 300);
   };
   
   // Clean up iframe on unmount
@@ -198,35 +246,35 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
           
           {/* Print Preview - This div will be used for printing */}
           <div ref={printRef} className="print-preview">
-            <div className="print-card bg-white text-black border border-black p-2 w-[3.5in] h-[2in] mx-auto">
-              <div className="ticket-header text-center font-bold text-sm border-b border-black pb-1 mb-1">
+            <div className="print-card bg-white text-black border-[1px] border-black p-2 w-[58mm] mx-auto" style={{fontFamily: 'Arial, sans-serif', fontWeight: 'bold'}}>
+              <div className="ticket-header text-center font-bold text-[12px] border-b border-black pb-1 mb-1">
                 Ticket: {ticketData.ticketId}
               </div>
-              <table className="ticket-table w-full text-xs">
+              <table className="ticket-table w-full text-[11px]">
                 <tbody>
                   <tr>
-                    <td className="label font-bold w-1/4 py-0.5">Owner:</td>
-                    <td className="value w-3/4 py-0.5">{ticketData.userName}</td>
+                    <td className="label font-bold align-top">Owner:</td>
+                    <td className="value font-bold align-top">{ticketData.userName}</td>
                   </tr>
                   <tr>
-                    <td className="label font-bold w-1/4 py-0.5">Department:</td>
-                    <td className="value w-3/4 py-0.5">{ticketData.departmentName}</td>
+                    <td className="label font-bold align-top">Dept:</td>
+                    <td className="value font-bold align-top">{ticketData.departmentName}</td>
                   </tr>
                   <tr>
-                    <td className="label font-bold w-1/4 py-0.5">Ext:</td>
-                    <td className="value w-3/4 py-0.5">{ticketData.extension}</td>
+                    <td className="label font-bold align-top">Ext:</td>
+                    <td className="value font-bold align-top">{ticketData.extension}</td>
                   </tr>
                   <tr>
-                    <td className="label font-bold w-1/4 py-0.5">Rack:</td>
-                    <td className="value w-3/4 py-0.5">{ticketData.rackLocation || "-"}</td>
+                    <td className="label font-bold align-top">Rack:</td>
+                    <td className="value font-bold align-top">{ticketData.rackLocation || "-"}</td>
                   </tr>
                   <tr>
-                    <td className="label font-bold w-1/4 py-0.5">Date In:</td>
-                    <td className="value w-3/4 py-0.5">{formatDate(ticketData.createdAt)}</td>
+                    <td className="label font-bold align-top">Date In:</td>
+                    <td className="value font-bold align-top">{formatDate(ticketData.createdAt)}</td>
                   </tr>
                   <tr>
-                    <td className="label font-bold w-1/4 py-0.5">Issue:</td>
-                    <td className="value w-3/4 py-0.5">{ticketData.title}</td>
+                    <td className="label font-bold align-top">Issue:</td>
+                    <td className="value font-bold align-top">{ticketData.title}</td>
                   </tr>
                 </tbody>
               </table>
