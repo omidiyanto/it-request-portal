@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Search, Ticket as TicketIcon } from "lucide-react";
+import { Search, Ticket as TicketIcon, Calendar as CalendarIcon, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -8,6 +8,10 @@ import TicketDetailModal from "@/components/ticket-detail-modal";
 import { Button } from "@/components/ui/button";
 import { queryClient } from "@/lib/queryClient";
 import type { TicketWithDetails } from "@shared/schema";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 // Helper function to strip HTML tags for preview
 const stripHtml = (html: string) => {
@@ -47,6 +51,7 @@ export default function SearchRequest() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<TicketWithDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
 
   // Set up query with auto-refresh every 3 seconds
   const { data: tickets, isLoading } = useQuery<TicketWithDetails[]>({
@@ -71,9 +76,22 @@ export default function SearchRequest() {
       const matchesStatus = !statusFilter || 
         ticket.status.toLowerCase() === statusFilter.toLowerCase();
       
-      return matchesSearchTerm && matchesStatus;
-    });
-  }, [tickets, searchTerm, statusFilter]);
+      // Hide closed tickets in "All" view
+      const hideClosedInAll = statusFilter === null ? 
+        ticket.status.toLowerCase() !== "closed" : true;
+      
+      // Filter by date if date filter is active
+      const ticketDate = new Date(ticket.createdAt);
+      const matchesDate = !dateFilter || 
+        (ticketDate.getFullYear() === dateFilter.getFullYear() &&
+         ticketDate.getMonth() === dateFilter.getMonth() &&
+         ticketDate.getDate() === dateFilter.getDate());
+      
+      return matchesSearchTerm && matchesStatus && hideClosedInAll && matchesDate;
+    })
+    // Sort tickets by creation date (FIFO - oldest first)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  }, [tickets, searchTerm, statusFilter, dateFilter]);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -151,6 +169,11 @@ export default function SearchRequest() {
     }
     
     return null;
+  };
+
+  // Function to clear date filter
+  const clearDateFilter = () => {
+    setDateFilter(undefined);
   };
 
   if (isLoading) {
@@ -240,6 +263,47 @@ export default function SearchRequest() {
           >
             Closed
           </Button>
+          
+          {/* Date Filter */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant={dateFilter ? "default" : "outline"} 
+                className="text-sm flex items-center gap-2"
+              >
+                <CalendarIcon className="h-4 w-4" />
+                {dateFilter ? format(dateFilter, "dd MMM yyyy") : "Filter by Date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={dateFilter}
+                onSelect={setDateFilter}
+                initialFocus
+              />
+              {dateFilter && (
+                <div className="flex justify-center p-2 border-t">
+                  <Button variant="ghost" size="sm" onClick={clearDateFilter}>
+                    Clear
+                  </Button>
+                </div>
+              )}
+            </PopoverContent>
+          </Popover>
+          
+          {/* Clear Date Filter Button */}
+          {dateFilter && (
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="h-9 w-9 rounded-full"
+              onClick={clearDateFilter}
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Clear date filter</span>
+            </Button>
+          )}
         </div>
 
         {/* Tickets Grid */}
@@ -249,7 +313,7 @@ export default function SearchRequest() {
               <TicketIcon className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-foreground mb-2">No tickets found</h3>
               <p className="text-muted-foreground">
-                {searchTerm || statusFilter
+                {searchTerm || statusFilter || dateFilter
                   ? `No tickets match the current filters`
                   : "No tickets have been created yet"
                 }

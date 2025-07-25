@@ -16,7 +16,7 @@ import type { TicketWithDetails } from "@shared/schema";
 
 const completionSchema = z.object({
   captchaAnswer: z.string().min(1, "Please solve the captcha"),
-  confirmed: z.boolean().refine(val => val === true, "Please confirm that the ticket has been resolved"),
+  confirmed: z.boolean().refine(val => val === true, "Please confirm that the ticket has been resolved and will be closed"),
 });
 
 type CompletionData = z.infer<typeof completionSchema>;
@@ -120,7 +120,7 @@ export default function CompletionModal({ ticket, isOpen, onClose, onSuccess }: 
             Complete Ticket
           </DialogTitle>
           <p className="text-muted-foreground mt-2">
-            Please confirm that this ticket has been resolved
+            Please confirm that this ticket has been resolved and will be closed
           </p>
         </DialogHeader>
 
