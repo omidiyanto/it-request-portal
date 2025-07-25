@@ -43,14 +43,22 @@ const RACK_LOCATIONS = [
 
 const stepOneSchema = z.object({
   userId: z.string().min(1, "User is required"),
-  extension: z.string().optional(), // Extension is optional
+  extension: z.string().optional()
+    .refine(val => !val || /^\d+$/.test(val), {
+      message: "Extension must contain only digits"
+    })
+    .refine(val => !val || val.length <= 3, {
+      message: "Extension must be 3 digits or fewer"
+    }), // Extension is optional, but if provided, must be digits only and max 3 characters
 });
 
 const stepTwoSchema = z.object({
   deviceType: z.enum(["PC", "Laptop", "Printer", "Others"], {
     required_error: "Device type is required",
   }),
-  issueTitle: z.string().min(5, "Issue title must be at least 5 characters"),
+  issueTitle: z.string()
+    .min(5, "Issue title must be at least 5 characters")
+    .max(50, "Issue title must not exceed 50 characters"),
   rackLocation: z.string().min(1, "Rack location is required"),
   issueDescription: z.string().min(10, "Issue description must be at least 10 characters"),
 });
@@ -382,8 +390,22 @@ export default function CreateRequest() {
                         <Input
                           {...field}
                           className="bg-muted border-border"
-                          placeholder="e.g., 1234 (optional)"
+                          placeholder="e.g., 123"
                           autoComplete="off"
+                          maxLength={3}
+                          pattern="\d*"
+                          inputMode="numeric"
+                          onKeyPress={(e) => {
+                            // Block any non-numeric characters
+                            if (!/\d/.test(e.key)) {
+                              e.preventDefault();
+                            }
+                          }}
+                          onChange={(e) => {
+                            // Replace any non-digits with empty string
+                            const sanitizedValue = e.target.value.replace(/\D/g, '');
+                            field.onChange(sanitizedValue);
+                          }}
                         />
                         </FormControl>
                       <FormMessage />
@@ -501,9 +523,13 @@ export default function CreateRequest() {
                           className="bg-muted border-border"
                           placeholder="Brief description of the issue"
                           autoComplete="off"
+                          maxLength={50}
                         />
                       </FormControl>
                       <FormMessage />
+                      <div className="text-xs text-right text-muted-foreground">
+                        {field.value?.length || 0}/50 characters
+                      </div>
                     </FormItem>
                 )}
                 />

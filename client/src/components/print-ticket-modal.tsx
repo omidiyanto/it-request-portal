@@ -46,12 +46,12 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
   const printRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   
-  // Format the date to a more readable format
+  // Format the date to a more compact format to prevent wrapping
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
       year: "numeric",
-      month: "short",
+      month: "numeric",
       day: "numeric"
     }) + " " + date.toLocaleTimeString("en-US", {
       hour: "2-digit",
@@ -107,8 +107,8 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
             <td style="width: 70%; padding: 0.5mm 0; font-weight: bold; vertical-align: top;">${ticketData.rackLocation || "-"}</td>
           </tr>
           <tr>
-            <td style="font-weight: bold; width: 30%; padding: 0.5mm 0; vertical-align: top;">Date In:</td>
-            <td style="width: 70%; padding: 0.5mm 0; font-weight: bold; vertical-align: top;">${formatDate(ticketData.createdAt)}</td>
+            <td style="font-weight: bold; width: 25%; padding: 0.5mm 0; vertical-align: top;">Date In:</td>
+            <td style="width: 75%; padding: 0.5mm 0; font-weight: bold; vertical-align: top; white-space: nowrap;">${formatDate(ticketData.createdAt)}</td>
           </tr>
           <tr>
             <td style="font-weight: bold; width: 30%; padding: 0.5mm 0; vertical-align: top;">Issue:</td>
@@ -269,8 +269,8 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
                     <td className="value font-bold align-top">{ticketData.rackLocation || "-"}</td>
                   </tr>
                   <tr>
-                    <td className="label font-bold align-top">Date In:</td>
-                    <td className="value font-bold align-top">{formatDate(ticketData.createdAt)}</td>
+                    <td className="label font-bold align-top" style={{width: "25%"}}>Date In:</td>
+                    <td className="value font-bold align-top" style={{whiteSpace: "nowrap"}}>{formatDate(ticketData.createdAt)}</td>
                   </tr>
                   <tr>
                     <td className="label font-bold align-top">Issue:</td>
