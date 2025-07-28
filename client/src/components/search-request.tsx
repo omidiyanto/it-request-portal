@@ -11,7 +11,7 @@ import type { TicketWithDetails } from "@shared/schema";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, formatWithTimeZone, getAppTimeZone } from "@/lib/utils";
 
 // Helper function to strip HTML tags for preview
 const stripHtml = (html: string) => {
@@ -52,6 +52,7 @@ export default function SearchRequest() {
   const [selectedTicket, setSelectedTicket] = useState<TicketWithDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  const timezone = getAppTimeZone();
 
   // Set up query with auto-refresh every 3 seconds
   const { data: tickets, isLoading } = useQuery<TicketWithDetails[]>({
@@ -128,15 +129,7 @@ export default function SearchRequest() {
   };
 
   const formatDate = (date: Date | string) => {
-    const d = new Date(date);
-    return d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+    return formatWithTimeZone(date, "dd MMM yyyy, HH:mm");
   };
 
   // Extract PIC (Person In Charge) from ticket data
@@ -202,7 +195,9 @@ export default function SearchRequest() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold text-foreground">Request List</h2>
-            <p className="text-muted-foreground">Search and manage existing requests</p>
+            <p className="text-muted-foreground">
+              Search and manage existing requests 
+            </p>
           </div>
           
           {/* Search Bar */}
