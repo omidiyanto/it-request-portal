@@ -21,6 +21,11 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
+    root: resolve(__dirname, "client"),
+    build: {
+      outDir: resolve(__dirname, "dist/public"),
+      emptyOutDir: true,
+    },
     resolve: {
       alias: {
         "@": resolve(__dirname, "client/src"),
