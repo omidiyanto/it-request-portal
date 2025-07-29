@@ -32,13 +32,12 @@ import {
 
 // Rack locations data - can be easily modified
 const RACK_LOCATIONS = [
-  { id: "a1-r01", label: "A1-R01" },
-  { id: "a1-r02", label: "A1-R02" },
-  { id: "a1-r03", label: "A1-R03" },
-  { id: "b1-r01", label: "B1-R01" },
-  { id: "b1-r02", label: "B1-R02" },
-  { id: "c1-r01", label: "C1-R01" },
-  { id: "c1-r02", label: "C1-R02" },
+  { id: "a-r1", label: "A-R1" },
+  { id: "a-r2", label: "A-R2" },
+  { id: "a-r3", label: "A-R3" },
+  { id: "b-r1", label: "B-R1" },
+  { id: "b-r2", label: "B-R2" },
+  { id: "b-r3", label: "B-R3" },
 ];
 
 const stepOneSchema = z.object({
