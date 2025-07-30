@@ -367,8 +367,8 @@ export default function SearchRequest() {
                       </Badge>
                     </div>
 
-                    {/* Ticket title */}
-                    <h4 className="font-medium text-foreground mb-3 line-clamp-1">{ticket.title}</h4>
+                    {/* Ticket title: remove department in parentheses at the end */}
+                    <h4 className="font-medium text-foreground mb-3 line-clamp-1">{ticket.title.replace(/ \([^)]*\)$/, '').trim()}</h4>
 
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">

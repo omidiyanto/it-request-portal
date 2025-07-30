@@ -187,7 +187,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
               {getStatusLabel(ticket.status)}
             </Badge>
               </div>
-          <h2 className="text-xl font-semibold text-foreground">{ticket.title}</h2>
+          <h2 className="text-xl font-semibold text-foreground">{ticket.title.replace(/ \([^)]*\)$/, '').trim()}</h2>
           <div className="flex items-center mt-2 text-sm text-muted-foreground">
             <User className="w-3.5 h-3.5 mr-1.5" />
             <span>{ticket.user.name}</span>
