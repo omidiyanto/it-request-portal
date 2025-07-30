@@ -103,7 +103,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
       minute: '2-digit',
       second: '2-digit',
       hour12: false,
-      timeZone: 'Asia/Jakarta',
+      timeZone: 'UTC',
     };
     const parts = new Intl.DateTimeFormat('en-GB', options).formatToParts(d);
     const get = (type: string) => parts.find(p => p.type === type)?.value || '';

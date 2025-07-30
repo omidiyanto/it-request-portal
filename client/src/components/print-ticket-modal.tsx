@@ -58,7 +58,7 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
       minute: '2-digit',
       second: '2-digit',
       hour12: false,
-      timeZone: 'Asia/Jakarta',
+      timeZone: 'UTC',
     };
     // Format: 2025-07-30 11:50:47
     const parts = new Intl.DateTimeFormat('en-GB', options).formatToParts(d);
