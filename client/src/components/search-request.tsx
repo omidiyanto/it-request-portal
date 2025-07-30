@@ -52,6 +52,7 @@ export default function SearchRequest() {
   const [selectedTicket, setSelectedTicket] = useState<TicketWithDetails | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
+  const [sortAsc, setSortAsc] = useState(true); // true = ascending, false = descending
   const timezone = getAppTimeZone();
 
   // Set up query with auto-refresh every 3 seconds
@@ -67,32 +68,31 @@ export default function SearchRequest() {
 
   const filteredTickets = useMemo(() => {
     if (!tickets) return [];
-    
-    return tickets.filter((ticket: TicketWithDetails) => {
+    let filtered = tickets.filter((ticket: TicketWithDetails) => {
       // Filter by search term
       const matchesSearchTerm = !searchTerm || 
         ticket.user.name.toLowerCase().includes(searchTerm.toLowerCase());
-      
       // Filter by status
       const matchesStatus = !statusFilter || 
         ticket.status.toLowerCase() === statusFilter.toLowerCase();
-      
       // Hide closed tickets in "All" view
       const hideClosedInAll = statusFilter === null ? 
         ticket.status.toLowerCase() !== "closed" : true;
-      
       // Filter by date if date filter is active
       const ticketDate = new Date(ticket.createdAt);
       const matchesDate = !dateFilter || 
         (ticketDate.getFullYear() === dateFilter.getFullYear() &&
          ticketDate.getMonth() === dateFilter.getMonth() &&
          ticketDate.getDate() === dateFilter.getDate());
-      
       return matchesSearchTerm && matchesStatus && hideClosedInAll && matchesDate;
-    })
-    // Sort tickets by creation date (FIFO - oldest first)
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-  }, [tickets, searchTerm, statusFilter, dateFilter]);
+    });
+    // Sort tickets by creation date
+    filtered = filtered.sort((a, b) => {
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortAsc ? diff : -diff;
+    });
+    return filtered;
+  }, [tickets, searchTerm, statusFilter, dateFilter, sortAsc]);
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
@@ -228,8 +228,8 @@ export default function SearchRequest() {
           </div>
         </div>
 
-        {/* Status Filter Buttons */}
-        <div className="flex flex-wrap gap-2">
+        {/* Status Filter Buttons & Sort */}
+        <div className="flex flex-wrap gap-2 items-center">
           <Button
             variant={statusFilter === null ? "default" : "outline"}
             onClick={() => setStatusFilter(null)}
@@ -272,7 +272,29 @@ export default function SearchRequest() {
           >
             Closed
           </Button>
-          
+          {/* Sort Button */}
+          <Button
+            variant="outline"
+            className="text-sm flex items-center gap-1"
+            onClick={() => setSortAsc((prev) => !prev)}
+            title={sortAsc ? "Sort by Newest" : "Sort by Oldest"}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              fill="none"
+              viewBox="0 0 24 24"
+              className="inline-block"
+            >
+              {sortAsc ? (
+                <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 5v14m0 0l-5-5m5 5l5-5" />
+              ) : (
+                <path stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M12 19V5m0 0l-5 5m5-5l5 5" />
+              )}
+            </svg>
+            {sortAsc ? "Oldest" : "Newest"}
+          </Button>
           {/* Date Filter */}
           <Popover>
             <PopoverTrigger asChild>
