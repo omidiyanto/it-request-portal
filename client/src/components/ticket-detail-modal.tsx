@@ -92,16 +92,22 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
     }
   }, [ticket]);
 
+  // Format date to Asia/Jakarta (UTC+7) as 'yyyy-MM-dd HH:mm:ss'
   const formatDate = (date: Date | string) => {
-    const d = new Date(date);
-    return d.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+    const d = typeof date === 'string' ? new Date(date) : date;
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
       hour12: false,
-    });
+      timeZone: 'Asia/Jakarta',
+    };
+    const parts = new Intl.DateTimeFormat('en-GB', options).formatToParts(d);
+    const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
   };
 
   const getStatusColor = (status: string) => {

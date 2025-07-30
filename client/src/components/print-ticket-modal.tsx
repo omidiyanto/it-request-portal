@@ -46,18 +46,24 @@ export default function PrintTicketModal({ isOpen, onClose, ticketData }: PrintT
   const printRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   
-  // Format the date to a more compact format to prevent wrapping
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "numeric",
-      day: "numeric"
-    }) + " " + date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false
-    });
+  // Format date to Asia/Jakarta (UTC+7) as 'yyyy-MM-dd HH:mm:ss'
+  const formatDate = (date: string) => {
+    const d = new Date(date);
+    // Convert to Asia/Jakarta timezone
+    const options: Intl.DateTimeFormatOptions = {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Jakarta',
+    };
+    // Format: 2025-07-30 11:50:47
+    const parts = new Intl.DateTimeFormat('en-GB', options).formatToParts(d);
+    const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+    return `${get('year')}-${get('month')}-${get('day')} ${get('hour')}:${get('minute')}:${get('second')}`;
   };
   
   const handlePrint = () => {
