@@ -176,6 +176,13 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
     onClose();
   };
 
+  // Department name logic: if title does not contain (DEPARTMENT_NAME), show '-'
+  let departmentName = ticket.department.name;
+  const deptPattern = new RegExp(`\\(${departmentName}\\)`, 'i');
+  if (!deptPattern.test(ticket.title)) {
+    departmentName = "-";
+  }
+
   return (
     <Dialog open={internalOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto p-0">
@@ -214,7 +221,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
                 <Briefcase className="w-4 h-4 mr-2" />
                 <span>Department</span>
               </div>
-              <span className="text-foreground">{ticket.department.name}</span>
+              <span className="text-foreground">{departmentName}</span>
             </div>
 
             <div className="bg-muted/30 rounded-lg p-4 flex flex-col">
@@ -308,7 +315,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
         ticketData={{
           ticketId: ticket.ticketId,
           userName: ticket.user.name,
-          departmentName: ticket.department.name,
+          departmentName: departmentName,
           extension: ticket.extension || "-",
           createdAt: typeof ticket.createdAt === 'string' ? ticket.createdAt : new Date(ticket.createdAt).toISOString(),
           title: ticket.title.replace(/ \(.*\)$/, ''), // Remove department suffix if present
