@@ -474,13 +474,23 @@ export class MemStorage implements IStorage {
   }
 
   private enrichTicket(ticket: Ticket): TicketWithDetails {
-    const department = this.departments.get(ticket.departmentId);
     const user = this.users.get(ticket.userId);
-    
-    if (!department || !user) {
+    let department = this.departments.get(ticket.departmentId);
+
+    // If departmentId is 0 (custom/bypass), allow and create a placeholder department object
+    if (!department && ticket.departmentId === 0) {
+      department = {
+        id: 0,
+        name: "Custom Department",
+        value: "custom-department"
+      };
+    }
+
+    // Only throw error if user or (department is missing and not a custom department)
+    if (!user || !department) {
       throw new Error("Invalid ticket data");
     }
-    
+
     return {
       ...ticket,
       department,
@@ -554,103 +564,73 @@ export class MemStorage implements IStorage {
 
   async fetchUsersFromITop(): Promise<User[]> {
     try {
-      console.log("Preparing to fetch users from iTop");
-      
-      // First fetch teams to get team-user relationships
+      console.log("Preparing to fetch ALL users from iTop (Person)");
+      // Fetch all Person objects
       const formData = new FormData();
       formData.append('version', ITOP_API_VERSION);
       formData.append('auth_user', ITOP_AUTH.user);
       formData.append('auth_pwd', ITOP_AUTH.password);
       formData.append('json_data', JSON.stringify({
         operation: "core/get",
-        class: "Team",
-        key: "SELECT Team",
-        output_fields: "name,persons_list"
+        class: "Person",
+        key: "SELECT Person",
+        output_fields: "friendlyname,team_list"
       }));
 
-      try {
-        const response = await axiosInstance.post(ITOP_API_URL, formData, {
-          headers: {
-            ...formData.getHeaders()
-          }
-        });
-
-        console.log("iTop API users response status:", response.status);
-        
-        const data = response.data as ITopTeamResponse;
-        
-        if (data.code !== 0) {
-          throw new Error(`iTop API error: ${data.message}`);
+      const response = await axiosInstance.post(ITOP_API_URL, formData, {
+        headers: {
+          ...formData.getHeaders()
         }
-
-        // Clear existing users
-        this.users.clear();
-        this.currentUserId = 1;
-        
-        // Make sure departments are loaded
-        if (this.departments.size === 0) {
-          await this.fetchTeamsFromITop();
-        }
-
-        // Map to store users with their team assignments
-        const userMap = new Map<string, {
-          name: string,
-          teams: string[]
-        }>();
-
-        // Process team data to extract users and their teams
-        Object.values(data.objects).forEach(team => {
-          const teamName = team.fields.name;
-          
-          team.fields.persons_list.forEach(person => {
-            const personId = person.person_id;
-            const personName = person.person_id_friendlyname;
-            
-            if (userMap.has(personId)) {
-              userMap.get(personId)?.teams.push(teamName);
-            } else {
-              userMap.set(personId, {
-                name: personName,
-                teams: [teamName]
-              });
-            }
-          });
-        });
-
-        // Convert to User objects
-        const users: User[] = [];
-        
-        userMap.forEach((userData, personId) => {
-          // Assign user to first team (department) they belong to
-          const primaryTeam = userData.teams[0];
-          const departmentEntry = Array.from(this.departments.values())
-            .find(dept => dept.name === primaryTeam);
-            
-          if (departmentEntry) {
-            const id = this.currentUserId++;
-            const user: User = {
-              id,
-              name: userData.name,
-              value: userData.name.toLowerCase().replace(/\s+/g, '.'),
-              departmentId: departmentEntry.id
-            };
-            
-            this.users.set(id, user);
-            users.push(user);
-          }
-        });
-
-        return users;
-      } catch (error: any) {
-        console.error("Error in iTop API request for users:", error.message);
-        if (error.response) {
-          console.error("Response status:", error.response.status);
-          console.error("Response data:", error.response.data);
-        }
-        throw error;
+      });
+      console.log("iTop API users response status:", response.status);
+      const data = response.data;
+      if (data.code !== 0) {
+        throw new Error(`iTop API error: ${data.message}`);
       }
-    } catch (error) {
-      console.error("Error fetching users from iTop:", error);
+
+      // Clear existing users
+      this.users.clear();
+      this.currentUserId = 1;
+
+      // Make sure departments are loaded
+      if (this.departments.size === 0) {
+        await this.fetchTeamsFromITop();
+      }
+
+      const users: User[] = [];
+      const departmentNameToId = new Map<string, number>();
+      for (const dept of Array.from(this.departments.values())) {
+        departmentNameToId.set(dept.name, dept.id);
+      }
+
+      Object.values(data.objects).forEach((person: any) => {
+        const personId = this.currentUserId++;
+        const name = person.fields.friendlyname;
+        const value = name.toLowerCase().replace(/\s+/g, '.');
+        let departmentId: number | null = null;
+        let departmentName = "";
+        // If team_list is not empty, use the first team as department
+        if (person.fields.team_list && person.fields.team_list.length > 0) {
+          const team = person.fields.team_list[0];
+          departmentName = team.team_name;
+          departmentId = departmentNameToId.get(departmentName) || null;
+        }
+        const user: User = {
+          id: personId,
+          name,
+          value,
+          departmentId: departmentId as any // can be null
+        };
+        this.users.set(personId, user);
+        users.push(user);
+      });
+      return users;
+    } catch (error: any) {
+      console.error("Error fetching users from iTop (Person):", error.message);
+      if (error.response) {
+        console.error("Response status:", error.response.status);
+        console.error("Response data:", error.response.data);
+      }
       throw error;
     }
   }

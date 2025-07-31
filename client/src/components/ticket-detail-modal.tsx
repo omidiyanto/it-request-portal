@@ -176,12 +176,29 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
     onClose();
   };
 
-  // Department name logic: if title does not contain (DEPARTMENT_NAME), show '-'
-  let departmentName = ticket.department.name;
-  const deptPattern = new RegExp(`\\(${departmentName}\\)`, 'i');
-  if (!deptPattern.test(ticket.title)) {
-    departmentName = "-";
-  }
+  // Department name logic: robust fallback to match search-request.tsx
+  const getDepartmentName = (ticket: TicketWithDetails) => {
+    // If departmentId 0, always parse from title
+    if (ticket.department.id === 0) {
+      const match = ticket.title.match(/\s*\(([^)]+)\)\s*$/);
+      if (match && match[1]) {
+        const dept = match[1].trim();
+        return dept.length > 0 ? dept : "-";
+      }
+      return "-";
+    }
+    // If department name is empty or unknown, fallback to parsing from title
+    if (!ticket.department.name || ticket.department.name.toLowerCase().includes('unknown department')) {
+      const match = ticket.title.match(/\s*\(([^)]+)\)\s*$/);
+      if (match && match[1]) {
+        const dept = match[1].trim();
+        return dept.length > 0 ? dept : "-";
+      }
+      return "-";
+    }
+    return ticket.department.name;
+  };
+  let departmentName = getDepartmentName(ticket);
 
   return (
     <Dialog open={internalOpen} onOpenChange={(open) => !open && onClose()}>

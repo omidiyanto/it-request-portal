@@ -48,7 +48,8 @@ const stepOneSchema = z.object({
     })
     .refine(val => !val || val.length <= 3, {
       message: "Extension must be 3 digits or fewer"
-    }), // Extension is optional, but if provided, must be digits only and max 3 characters
+    }),
+  department: z.string().optional(), // Only required if user has no department
 });
 
 const stepTwoSchema = z.object({
@@ -72,6 +73,8 @@ export default function CreateRequest() {
   const [selectedUserName, setSelectedUserName] = useState<string>("");
   const [selectedDepartmentName, setSelectedDepartmentName] = useState<string>("");
   const [selectedDepartmentId, setSelectedDepartmentId] = useState<string>("");
+  const [userHasDepartment, setUserHasDepartment] = useState<boolean>(true);
+  const [customDepartmentName, setCustomDepartmentName] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [open, setOpen] = useState(false);
   
@@ -142,15 +145,17 @@ export default function CreateRequest() {
       const selectedUser = allUsers.find(user => user.id.toString() === selectedUserId);
       if (selectedUser) {
         setSelectedUserName(selectedUser.name);
-        
-        // Set the department based on the selected user
-        const userDepartmentId = selectedUser.departmentId.toString();
-        setSelectedDepartmentId(userDepartmentId);
-        
-        // Find department name
-        const selectedDept = departments?.find(dept => dept.id.toString() === userDepartmentId);
-        if (selectedDept) {
-          setSelectedDepartmentName(selectedDept.name);
+        // Check if user has departmentId and department exists
+        if (selectedUser.departmentId && departments?.find(dept => dept.id === selectedUser.departmentId)) {
+          setUserHasDepartment(true);
+          const userDepartmentId = selectedUser.departmentId.toString();
+          setSelectedDepartmentId(userDepartmentId);
+          const selectedDept = departments?.find(dept => dept.id.toString() === userDepartmentId);
+          setSelectedDepartmentName(selectedDept ? selectedDept.name : "");
+        } else {
+          setUserHasDepartment(false);
+          setSelectedDepartmentId("");
+          setSelectedDepartmentName("");
         }
       }
     }
@@ -213,7 +218,7 @@ export default function CreateRequest() {
       setPrintTicketData({
         ticketId: ticket.ticketId,
         userName: ticket.userName,
-        departmentName: ticket.departmentName,
+        departmentName: customDepartmentName,
         extension: ticket.extension || "-",
         createdAt: ticket.createdAt,
         title: ticket.title,
@@ -236,13 +241,26 @@ export default function CreateRequest() {
   });
 
   const handleStepOneSubmit = (data: StepOneData) => {
+    // If user has no department, department field must be filled
+    if (!userHasDepartment && !data.department) {
+      toast({
+        title: "Department Required",
+        description: "Please input department name for this user.",
+        variant: "destructive",
+      });
+      return;
+    }
     setStepOneData(data);
+    if (!userHasDepartment && data.department) {
+      setCustomDepartmentName(data.department);
+    } else {
+      setCustomDepartmentName(selectedDepartmentName);
+    }
     setStep(2);
   };
 
   const handleStepTwoSubmit = (data: StepTwoData) => {
-    if (!stepOneData || !selectedUserName || !selectedDepartmentName || !selectedDepartmentId) {
-      console.error("Missing required data:", { stepOneData, selectedUserName, selectedDepartmentName, selectedDepartmentId });
+    if (!stepOneData || !selectedUserName || (!userHasDepartment && !stepOneData.department)) {
       toast({
         title: "Error",
         description: "Missing required information. Please go back and try again.",
@@ -250,13 +268,19 @@ export default function CreateRequest() {
       });
       return;
     }
-    
+    let departmentId = selectedDepartmentId;
+    let departmentName = selectedDepartmentName;
+    // If user has no department, use inputted department
+    if (!userHasDepartment) {
+      departmentName = stepOneData.department || "";
+      departmentId = "0"; // Or any value to indicate custom department
+    }
     try {
       createTicketMutation.mutate({
-        departmentId: parseInt(selectedDepartmentId),
+        departmentId: parseInt(departmentId),
         userId: parseInt(stepOneData.userId),
         userName: selectedUserName,
-        departmentName: selectedDepartmentName,
+        departmentName,
         extension: stepOneData.extension || '-',
         deviceType: data.deviceType,
         issueTitle: data.issueTitle,
@@ -275,7 +299,6 @@ export default function CreateRequest() {
   // Handle closing the print modal and resetting form
   const handlePrintModalClose = () => {
     setShowPrintModal(false);
-    
     // Reset forms and step after closing the print modal
     stepOneForm.reset();
     stepTwoForm.reset();
@@ -283,6 +306,7 @@ export default function CreateRequest() {
     setSelectedUserName("");
     setSelectedDepartmentName("");
     setSelectedDepartmentId("");
+    setCustomDepartmentName("");
     setStep(1);
   };
 
@@ -412,10 +436,33 @@ export default function CreateRequest() {
                   )}
                 />
 
+                {/* Department input if user has no department */}
+                {!userHasDepartment && (
+                  <FormField
+                    control={stepOneForm.control}
+                    name="department"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-muted-foreground">
+                          Department <span className="text-destructive">*</span>
+                        </FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            className="bg-muted border-border"
+                            placeholder="Input department name"
+                            autoComplete="off"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 <Button 
                   type="submit" 
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
-                  disabled={!selectedUserId}
+                  disabled={!selectedUserId || (!userHasDepartment && !stepOneForm.watch("department"))}
                 >
                   <Send className="w-4 h-4 mr-2" />
                   Continue
@@ -450,7 +497,7 @@ export default function CreateRequest() {
                 </div>
                 <div className="text-center">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Department</p>
-                  <p className="text-sm font-medium">{selectedDepartmentName}</p>
+                  <p className="text-sm font-medium">{customDepartmentName}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-xs font-medium text-muted-foreground mb-1">Extension</p>

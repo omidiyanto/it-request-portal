@@ -94,6 +94,29 @@ export default function SearchRequest() {
     return filtered;
   }, [tickets, searchTerm, statusFilter, dateFilter, sortAsc]);
 
+  // Helper to extract department from title if custom (id=0)
+  const getDepartmentName = (ticket: TicketWithDetails) => {
+    // If departmentId 0, always parse from title
+    if (ticket.department.id === 0) {
+      const match = ticket.title.match(/\s*\(([^)]+)\)\s*$/);
+      if (match && match[1]) {
+        const dept = match[1].trim();
+        return dept.length > 0 ? dept : "-";
+      }
+      return "-";
+    }
+    // If department name is empty or unknown, fallback to parsing from title
+    if (!ticket.department.name || ticket.department.name.toLowerCase().includes('unknown department')) {
+      const match = ticket.title.match(/\s*\(([^)]+)\)\s*$/);
+      if (match && match[1]) {
+        const dept = match[1].trim();
+        return dept.length > 0 ? dept : "-";
+      }
+      return "-";
+    }
+    return ticket.department.name;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
       case "new":
@@ -360,12 +383,9 @@ export default function SearchRequest() {
               // Get PIC if available
               const personInCharge = getPersonInCharge(ticket);
 
-              // Department name logic: if title does not contain (DEPARTMENT_NAME), show '-'
-              let departmentName = ticket.department.name;
-              const deptPattern = new RegExp(`\\(${departmentName}\\)`, 'i');
-              if (!deptPattern.test(ticket.title)) {
-                departmentName = "-";
-              }
+
+              // Department name logic: if custom department, extract from title
+              let departmentName = getDepartmentName(ticket);
 
               return (
                 <div
