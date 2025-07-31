@@ -283,14 +283,26 @@ export class MemStorage implements IStorage {
       // Try to fetch from iTop API first
       const iTopUsers = await this.fetchUsersFromITop();
       if (iTopUsers.length > 0) {
-        return iTopUsers;
+        // Remove duplicates by name and value
+        const seen = new Set();
+        return iTopUsers.filter(u => {
+          const key = `${u.name.toLowerCase()}|${u.value.toLowerCase()}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
       }
     } catch (error) {
       console.error("Failed to fetch users from iTop API, falling back to local data:", error);
     }
-    
     // Fall back to local data if API fails
-    return Array.from(this.users.values());
+    const seen = new Set();
+    return Array.from(this.users.values()).filter(u => {
+      const key = `${u.name.toLowerCase()}|${u.value.toLowerCase()}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   async getUsersByDepartment(departmentId: number): Promise<User[]> {
@@ -574,7 +586,7 @@ export class MemStorage implements IStorage {
         operation: "core/get",
         class: "Person",
         key: "SELECT Person",
-        output_fields: "friendlyname,team_list"
+        output_fields: "id,friendlyname,team_list"
       }));
 
       const response = await axiosInstance.post(ITOP_API_URL, formData, {
@@ -604,7 +616,6 @@ export class MemStorage implements IStorage {
       }
 
       Object.values(data.objects).forEach((person: any) => {
-        const personId = this.currentUserId++;
         const name = person.fields.friendlyname;
         const value = name.toLowerCase().replace(/\s+/g, '.');
         let departmentId: number | null = null;
@@ -615,12 +626,20 @@ export class MemStorage implements IStorage {
           departmentName = team.team_name;
           departmentId = departmentNameToId.get(departmentName) || null;
         }
+        // Prevent duplicate users by name and value
+        const key = `${name.toLowerCase()}|${value.toLowerCase()}`;
+        if (users.some(u => `${u.name.toLowerCase()}|${u.value.toLowerCase()}` === key)) {
+          return;
+        }
+        const personId = this.currentUserId++;
         const user: User = {
           id: personId,
           name,
           value,
-          departmentId: departmentId as any // can be null
-        };
+          departmentId: departmentId as any, // can be null
+          // Save iTop person id for later use
+          iTopId: person.fields.id
+        } as any;
         this.users.set(personId, user);
         users.push(user);
       });
@@ -835,12 +854,20 @@ export class MemStorage implements IStorage {
   async createTicketInITop(ticket: InsertTicket, userName: string): Promise<string> {
     try {
       console.log("Preparing to create ticket in iTop");
-      
+      // Find the user object by name (case-insensitive)
+      let userObj = Array.from(this.users.values()).find(u => u.name.toLowerCase() === userName.toLowerCase());
+      let callerIdQuery = '';
+      if (userObj && (userObj as any).iTopId) {
+        // Use the unique iTop id if available
+        callerIdQuery = (userObj as any).iTopId;
+      } else {
+        // Fallback to friendlyname (may cause duplicate error if not unique)
+        callerIdQuery = `SELECT Person WHERE friendlyname=\"${userName}\"`;
+      }
       const formData = new FormData();
       formData.append('version', ITOP_API_VERSION);
       formData.append('auth_user', ITOP_AUTH.user);
       formData.append('auth_pwd', ITOP_AUTH.password);
-      
       // Prepare the JSON data for ticket creation
       const jsonData = {
         operation: "core/create",
@@ -848,7 +875,7 @@ export class MemStorage implements IStorage {
         class: "UserRequest",
         output_fields: "ref",
         fields: {
-          caller_id: `SELECT Person WHERE friendlyname="${userName}"`,
+          caller_id: callerIdQuery,
           org_id: ITOP_DEFAULT_ORG_ID,
           origin: "portal",
           title: ticket.title,
@@ -856,44 +883,34 @@ export class MemStorage implements IStorage {
           urgency: "4",
           impact: "3",
           status: "new",
-          service_id: `SELECT Service WHERE name="${ITOP_SERVICE_NAME}"`,
-          servicesubcategory_id: `SELECT ServiceSubcategory WHERE name="${ITOP_SERVICESUBCATEGORY_NAME}"`
+          service_id: `SELECT Service WHERE name=\"${ITOP_SERVICE_NAME}\"`,
+          servicesubcategory_id: `SELECT ServiceSubcategory WHERE name=\"${ITOP_SERVICESUBCATEGORY_NAME}\"`
         }
       };
-      
       console.log("Create ticket payload:", JSON.stringify(jsonData));
       formData.append('json_data', JSON.stringify(jsonData));
-
       try {
         const response = await axiosInstance.post(ITOP_API_URL, formData, {
           headers: {
             ...formData.getHeaders()
           }
         });
-
         console.log("iTop API create ticket response status:", response.status);
         console.log("iTop API create ticket response:", JSON.stringify(response.data, null, 2));
-        
         const data = response.data as any;
-        
         if (data.code !== 0) {
           throw new Error(`iTop API error: ${data.message}`);
         }
-
         // Based on the actual response structure, extract the ref directly
-        // The response structure is different from what we expected
         if (data.objects) {
-          const objectKey = Object.keys(data.objects)[0]; // Get the first key (e.g., "UserRequest::7")
+          const objectKey = Object.keys(data.objects)[0];
           if (objectKey && data.objects[objectKey] && data.objects[objectKey].fields && data.objects[objectKey].fields.ref) {
             const ticketRef = data.objects[objectKey].fields.ref;
             console.log("Ticket reference extracted directly:", ticketRef);
             return ticketRef;
           }
         }
-        
-        console.log("Could not extract ref directly, trying alternative approach");
-        
-        // If we couldn't extract the ref directly, try to get the key and make another request
+        // Fallback: try to get the key and make another request
         let objectKey = "";
         if (data.objects) {
           objectKey = Object.keys(data.objects)[0];
@@ -903,12 +920,8 @@ export class MemStorage implements IStorage {
         } else {
           throw new Error("No objects found in response");
         }
-        
-        // Extract just the numeric part from the key (e.g., "7" from "UserRequest::7")
         const keyParts = objectKey.split("::");
         const numericKey = keyParts.length > 1 ? keyParts[1] : objectKey;
-        
-        // Make another request to get the ticket reference (ref field)
         const refFormData = new FormData();
         refFormData.append('version', ITOP_API_VERSION);
         refFormData.append('auth_user', ITOP_AUTH.user);
@@ -919,21 +932,16 @@ export class MemStorage implements IStorage {
           key: numericKey,
           output_fields: "ref"
         }));
-        
         const refResponse = await axiosInstance.post(ITOP_API_URL, refFormData, {
           headers: {
             ...refFormData.getHeaders()
           }
         });
-        
         console.log("iTop API get ticket ref response:", JSON.stringify(refResponse.data, null, 2));
-        
         const refData = refResponse.data as any;
         if (refData.code !== 0) {
           throw new Error(`Failed to get ticket reference: ${refData.message}`);
         }
-        
-        // Try to extract the ref from the second response
         if (refData.objects) {
           const refObjectKey = Object.keys(refData.objects)[0];
           if (refObjectKey && refData.objects[refObjectKey] && refData.objects[refObjectKey].fields && refData.objects[refObjectKey].fields.ref) {
@@ -942,7 +950,6 @@ export class MemStorage implements IStorage {
             return ticketRef;
           }
         }
-        
         throw new Error("Could not extract ticket reference from API responses");
       } catch (error: any) {
         console.error("Error in iTop API request for creating ticket:", error.message);
