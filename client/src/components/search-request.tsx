@@ -50,7 +50,7 @@ const extractDeviceType = (html: string): string => {
 export default function SearchRequest() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<TicketWithDetails | null>(null);
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]); // multi status
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [sortAsc, setSortAsc] = useState(true); // true = ascending, false = descending
   const timezone = getAppTimeZone();
@@ -72,19 +72,18 @@ export default function SearchRequest() {
       // Filter by search term
       const matchesSearchTerm = !searchTerm || 
         ticket.user.name.toLowerCase().includes(searchTerm.toLowerCase());
-      // Filter by status
-      const matchesStatus = !statusFilter || 
-        ticket.status.toLowerCase() === statusFilter.toLowerCase();
-      // Hide closed tickets in "All" view
-      const hideClosedInAll = statusFilter === null ? 
-        ticket.status.toLowerCase() !== "closed" : true;
+      // Multi status filter
+      const status = ticket.status.toLowerCase();
+      const matchesStatus = statusFilter.length === 0
+        ? status !== "closed" // default: all except closed
+        : statusFilter.includes(status);
       // Filter by date if date filter is active
       const ticketDate = new Date(ticket.createdAt);
       const matchesDate = !dateFilter || 
         (ticketDate.getFullYear() === dateFilter.getFullYear() &&
          ticketDate.getMonth() === dateFilter.getMonth() &&
          ticketDate.getDate() === dateFilter.getDate());
-      return matchesSearchTerm && matchesStatus && hideClosedInAll && matchesDate;
+      return matchesSearchTerm && matchesStatus && matchesDate;
     });
     // Sort tickets by creation date
     filtered = filtered.sort((a, b) => {
@@ -254,47 +253,34 @@ export default function SearchRequest() {
         {/* Status Filter Buttons & Sort */}
         <div className="flex flex-wrap gap-2 items-center">
           <Button
-            variant={statusFilter === null ? "default" : "outline"}
-            onClick={() => setStatusFilter(null)}
+            variant={statusFilter.length === 0 ? "default" : "outline"}
+            onClick={() => setStatusFilter([])}
             className="text-sm"
           >
             All
           </Button>
-          <Button
-            variant={statusFilter === "new" ? "default" : "outline"}
-            onClick={() => setStatusFilter("new")}
-            className="text-sm"
-          >
-            Open
-          </Button>
-          <Button
-            variant={statusFilter === "assigned" ? "default" : "outline"}
-            onClick={() => setStatusFilter("assigned")}
-            className="text-sm"
-          >
-            In Progress
-          </Button>
-          <Button
-            variant={statusFilter === "pending" ? "default" : "outline"}
-            onClick={() => setStatusFilter("pending")}
-            className="text-sm"
-          >
-            Pending
-          </Button>
-          <Button
-            variant={statusFilter === "resolved" ? "default" : "outline"}
-            onClick={() => setStatusFilter("resolved")}
-            className="text-sm"
-          >
-            Done
-          </Button>
-          <Button
-            variant={statusFilter === "closed" ? "default" : "outline"}
-            onClick={() => setStatusFilter("closed")}
-            className="text-sm"
-          >
-            Closed
-          </Button>
+          {[
+            { label: "Open", value: "new" },
+            { label: "In Progress", value: "assigned" },
+            { label: "Pending", value: "pending" },
+            { label: "Done", value: "resolved" },
+            { label: "Closed", value: "closed" },
+          ].map(({ label, value }) => (
+            <Button
+              key={value}
+              variant={statusFilter.includes(value) ? "default" : "outline"}
+              onClick={() => {
+                setStatusFilter((prev) =>
+                  prev.includes(value)
+                    ? prev.filter((v) => v !== value)
+                    : [...prev, value]
+                );
+              }}
+              className="text-sm"
+            >
+              {label}
+            </Button>
+          ))}
           {/* Sort Button */}
           <Button
             variant="outline"
