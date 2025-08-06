@@ -713,32 +713,41 @@ export class MemStorage implements IStorage {
         for (const ticketKey in data.objects) {
           const iTopTicket = data.objects[ticketKey];
           
-          // Find user by name
-          const callerName = iTopTicket.fields.caller_name;
-          let user = Array.from(this.users.values()).find(u => 
-            u.name.includes(callerName) || callerName.includes(u.name)
-          );
-          
-          // If user not found, create a placeholder user
+          // Find user by iTopId (caller_id)
+          const callerId = iTopTicket.fields.caller_id;
+          let user = Array.from(this.users.values()).find(u => (u as any).iTopId == callerId);
+          // Fallback to name if iTopId not found
           if (!user) {
-            const defaultDeptId = this.departments.size > 0 ? 
+            const callerName = iTopTicket.fields.caller_name;
+            user = Array.from(this.users.values()).find(u =>
+              u.name.includes(callerName) || callerName.includes(u.name)
+            );
+          }
+          // If user still not found, create a placeholder user
+          if (!user) {
+            const defaultDeptId = this.departments.size > 0 ?
               Array.from(this.departments.values())[0].id : 1;
-              
             user = {
               id: this.currentUserId++,
-              name: iTopTicket.fields.caller_id_friendlyname || callerName,
-              value: (iTopTicket.fields.caller_id_friendlyname || callerName).toLowerCase().replace(/\s+/g, '.'),
-              departmentId: defaultDeptId
-            };
-            
-            this.users.set(user.id, user);
+              name: iTopTicket.fields.caller_id_friendlyname || iTopTicket.fields.caller_name,
+              value: (iTopTicket.fields.caller_id_friendlyname || iTopTicket.fields.caller_name).toLowerCase().replace(/\s+/g, '.'),
+              departmentId: defaultDeptId,
+              iTopId: callerId
+            } as any;
+            // Only set if user is defined
+            if (user) {
+              this.users.set(user.id, user);
+            }
+          }
+          // Ensure user is always defined
+          if (!user) {
+            throw new Error('User mapping failed for ticket: ' + iTopTicket.fields.ref);
           }
           
           // Find department by team name
-          let department = Array.from(this.departments.values()).find(d => 
+          let department = Array.from(this.departments.values()).find(d =>
             d.name === iTopTicket.fields.team_name
           );
-          
           // If department not found, use user's department or create one
           if (!department) {
             department = this.departments.get(user.departmentId) || {
@@ -746,7 +755,6 @@ export class MemStorage implements IStorage {
               name: iTopTicket.fields.team_name || "Unknown Department",
               value: (iTopTicket.fields.team_name || "unknown").toLowerCase().replace(/\s+/g, '-')
             };
-            
             if (!this.departments.has(department.id)) {
               this.departments.set(department.id, department);
             }
@@ -824,15 +832,13 @@ export class MemStorage implements IStorage {
           const enrichedTicket: TicketWithDetails = {
             ...ticket,
             department,
-            user
+            user: user as any
           };
-
           // Add agent_id_friendlyname if it exists
           if (iTopTicket.fields.agent_id_friendlyname) {
             (enrichedTicket as any).agent_id_friendlyname = iTopTicket.fields.agent_id_friendlyname;
             console.log(`Added agent_id_friendlyname: ${iTopTicket.fields.agent_id_friendlyname} to ticket ${ticket.ticketId}`);
           }
-          
           ticketsWithDetails.push(enrichedTicket);
         }
 
