@@ -869,6 +869,21 @@ export class MemStorage implements IStorage {
       formData.append('auth_user', ITOP_AUTH.user);
       formData.append('auth_pwd', ITOP_AUTH.password);
       // Prepare the JSON data for ticket creation
+      // Tentukan apakah user punya team/department
+      let hasDepartment = false;
+      let departmentName = "";
+      if (userObj && userObj.departmentId && this.departments.has(userObj.departmentId)) {
+        hasDepartment = true;
+        departmentName = this.departments.get(userObj.departmentId)?.name || "";
+      }
+      // Jika user punya department, title hanya berisi issueTitle saja
+      // Jika tidak, title tetap berisi issueTitle (DEPARTMENTNAME)
+      let title = ticket.title;
+      if (hasDepartment) {
+        // Hapus (DEPARTMENTNAME) jika ada di title
+        title = title.replace(/\s*\([^)]*\)\s*$/, "").trim();
+      }
+      // Jika tidak punya department, biarkan title apa adanya (sudah include department manual)
       const jsonData = {
         operation: "core/create",
         comment: "Created from Ticket Tracker Pro",
@@ -878,7 +893,7 @@ export class MemStorage implements IStorage {
           caller_id: callerIdQuery,
           org_id: ITOP_DEFAULT_ORG_ID,
           origin: "portal",
-          title: ticket.title,
+          title: title,
           description: ticket.issueDescription,
           urgency: "4",
           impact: "3",

@@ -178,7 +178,11 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
 
   // Department name logic: robust fallback to match search-request.tsx
   const getDepartmentName = (ticket: TicketWithDetails) => {
-    // If departmentId 0, always parse from title
+    // Jika department name valid, gunakan
+    if (ticket.department && ticket.department.name && ticket.department.name.toLowerCase() !== 'unknown department') {
+      return ticket.department.name;
+    }
+    // Jika departmentId 0, ambil dari title
     if (ticket.department.id === 0) {
       const match = ticket.title.match(/\s*\(([^)]+)\)\s*$/);
       if (match && match[1]) {
@@ -187,7 +191,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
       }
       return "-";
     }
-    // If department name is empty or unknown, fallback to parsing from title
+    // Jika department name kosong/unknown, fallback ke title
     if (!ticket.department.name || ticket.department.name.toLowerCase().includes('unknown department')) {
       const match = ticket.title.match(/\s*\(([^)]+)\)\s*$/);
       if (match && match[1]) {
@@ -196,7 +200,7 @@ export default function TicketDetailModal({ ticket, isOpen, onClose }: TicketDet
       }
       return "-";
     }
-    return ticket.department.name;
+    return "-";
   };
   let departmentName = getDepartmentName(ticket);
 
